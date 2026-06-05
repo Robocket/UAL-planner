@@ -1,0 +1,24 @@
+<launch>
+    <param name="use_sim_time" value="true" />
+
+    <node name="yoloe_seg_node" pkg="ins_seg" type="seg.py" output="screen" respawn="false">
+        <param name="image_topic" value="/camera/color/image_raw" />  <!-- 修改为你的实际话题 -->
+        <param name="model_path" value="/home/k325/models/YoloE/yolo26n-seg.pt" />
+        <param name="confidence_threshold" value="0.5" />
+        <param name="iou_threshold" value="0.5" />
+        <param name="tracker_type" value="botsort.yaml" />
+        <param name="device" value="cpu" />
+        <param name="show_result" value="false" />
+        <param name="publish_result" value="true" />
+        <!-- 只检测特定类别，例如只检测人(0)和车(2) -->
+        <!-- <param name="classes" value="[0, 2]" /> -->
+    </node>
+    <node 
+        name="projection_node"        
+        pkg="ins_seg"     
+        type="projection.py"    
+        output="screen"                  
+        respawn="true"
+        args="$(find ins_seg)/scripts/projection.py">           
+    </node>
+</launch>

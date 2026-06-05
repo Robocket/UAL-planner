@@ -1,0 +1,8 @@
+prefix=/home/k325/UAL-planner/install
+
+Name: ins_seg
+Description: Description of ins_seg
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: roscpp rospy cv_bridge sensor_msgs std_msgs message_runtime geometry_msgs visualization_msgs tf2_ros tf2_sensor_msgs
