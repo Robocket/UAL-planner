@@ -1,2 +1,0 @@
-planner/Instance_Seg
--DCATKIN_DEVEL_PREFIX=/home/k325/UAL-planner/devel -DCMAKE_INSTALL_PREFIX=/home/k325/UAL-planner/install -G Unix Makefiles

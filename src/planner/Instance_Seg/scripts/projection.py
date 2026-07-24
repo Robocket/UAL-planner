@@ -1,193 +1,286 @@
 #!/usr/bin/env python3
-import rospy
-import numpy as np
-import sys
+"""Project a registered point cloud into a segmented camera image."""
+
 import cv2
-
-if tuple(int(x) for x in np.__version__.split('.')[:2]) >= (2, 0):
-    sys.stderr.write(
-        f"ERROR: cv_bridge is incompatible with NumPy {np.__version__}.\n"
-        "ROS Noetic / cv_bridge requires numpy<2.0.\n"
-        "Please downgrade NumPy in your Python environment, e.g. `pip install 'numpy<2'`.\n"
-    )
-    raise SystemExit(1)
-
-from sensor_msgs.msg import PointCloud2, Image
-from nav_msgs.msg import Odometry
-from cv_bridge import CvBridge, CvBridgeError
-import sensor_msgs.point_cloud2 as pc2
-from tf.transformations import quaternion_matrix, translation_matrix, concatenate_matrices
 import message_filters
+import numpy as np
+import rclpy
+from cv_bridge import CvBridge, CvBridgeError
+from nav_msgs.msg import Odometry
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import Image, PointCloud2
+from sensor_msgs_py import point_cloud2
 
-class PointCloudToImage:
+from ins_seg.msg import InstanceInfo, ProjectedInstanceInfo, SegmentationResult
+
+
+def quaternion_matrix(x, y, z, w):
+    """Return a homogeneous rotation matrix for a normalized quaternion."""
+    norm = x * x + y * y + z * z + w * w
+    if norm < np.finfo(float).eps:
+        return np.identity(4)
+    scale = 2.0 / norm
+    return np.array([
+        [1.0 - scale * (y * y + z * z), scale * (x * y - z * w),
+         scale * (x * z + y * w), 0.0],
+        [scale * (x * y + z * w), 1.0 - scale * (x * x + z * z),
+         scale * (y * z - x * w), 0.0],
+        [scale * (x * z - y * w), scale * (y * z + x * w),
+         1.0 - scale * (x * x + y * y), 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ])
+
+
+class PointCloudProjection(Node):
     def __init__(self):
-        # 使用仿真时间，配合 rosbag play --clock
-        rospy.set_param('/use_sim_time', True)
-        # ROS节点初始化
-        rospy.init_node('pointcloud_to_image_node', anonymous=True)
-        
-        # 参数配置
-        self.image_width = rospy.get_param('~image_width', 640)
-        self.image_height = rospy.get_param('~image_height', 480)
-        self.fov_deg = rospy.get_param('~fov_deg', 87)  # 水平视场角
-        self.near_plane = rospy.get_param('~near_plane', 0.1)
-        self.far_plane = rospy.get_param('~far_plane', 100.0)
-        self.point_size = rospy.get_param('~point_size', 1)
-        self.color_mode = rospy.get_param('~color_mode', 'depth')  # 'depth' or 'height'
-        self.seg_image_topic = rospy.get_param('~seg_image_topic', '/yoloe/segmentation_result')
-        
-        # 相机内参计算
-        self.fov_rad = np.deg2rad(self.fov_deg)
-        self.fx = 385.45 # 焦距（像素) self.image_width / (2 * np.tan(self.fov_rad / 2))
-        self.fy = self.fx  # 假设像素是正方形
-        self.cx = self.image_width / 2
-        self.cy = self.image_height / 2
-        
-        # 内参矩阵
-        self.K = np.array([
-            [self.fx, 0, self.cx],
-            [0, self.fy, self.cy],
-            [0, 0, 1]
-        ])
-        
-        # 初始化CV桥
+        super().__init__('pointcloud_projection')
+        defaults = {
+            'image_width': 640,
+            'image_height': 480,
+            'fov_deg': 87.0,
+            'fx': 385.45,
+            'fy': 385.45,
+            'near_plane': 0.1,
+            'far_plane': 100.0,
+            'point_size': 1,
+            'color_mode': 'instance',
+            'pointcloud_topic': '/cloud_registered',
+            'odometry_topic': '/Odometry',
+            'segmentation_topic': '/yoloe/segmentation',
+            'projected_image_topic': '/projected_image',
+            'projected_cloud_topic': '/projected_cloud',
+            'projected_info_topic': '/projected_instance_info',
+            'sync_queue_size': 10,
+            'sync_slop': 0.1,
+            'coordinate_ema_alpha': 0.6,
+        }
+        for name, value in defaults.items():
+            self.declare_parameter(name, value)
+
+        self.image_width = self.get_parameter('image_width').value
+        self.image_height = self.get_parameter('image_height').value
+        self.near_plane = self.get_parameter('near_plane').value
+        self.far_plane = self.get_parameter('far_plane').value
+        self.point_size = self.get_parameter('point_size').value
+        self.color_mode = self.get_parameter('color_mode').value
+        self.coordinate_ema_alpha = self.get_parameter('coordinate_ema_alpha').value
+        self.fx = self.get_parameter('fx').value
+        self.fy = self.get_parameter('fy').value
+        if self.fx <= 0.0:
+            fov = np.deg2rad(self.get_parameter('fov_deg').value)
+            self.fx = self.image_width / (2.0 * np.tan(fov / 2.0))
+        if self.fy <= 0.0:
+            self.fy = self.fx
+        self.cx = self.image_width / 2.0
+        self.cy = self.image_height / 2.0
         self.bridge = CvBridge()
-        
-        # 订阅话题（使用时间同步）
-        self.pc_sub = message_filters.Subscriber('/cloud_registered', PointCloud2)
-        self.odom_sub = message_filters.Subscriber('/Odometry', Odometry)
-        self.seg_sub = message_filters.Subscriber(self.seg_image_topic, Image)
-        
-        # 时间同步器（近似时间同步）
-        self.ts = message_filters.ApproximateTimeSynchronizer(
-            [self.pc_sub, self.odom_sub, self.seg_sub], 
-            queue_size=10, 
-            slop=0.1
+        self.instance_coordinates = {}
+
+        self.pc_sub = message_filters.Subscriber(
+            self, PointCloud2, self.get_parameter('pointcloud_topic').value,
+            qos_profile=qos_profile_sensor_data,
         )
-        self.ts.registerCallback(self.callback)
-        
-        # 发布图像话题
-        self.image_pub = rospy.Publisher('/projected_image', Image, queue_size=1)
-        
-        rospy.loginfo("PointCloud to Image node initialized")
-        rospy.loginfo(f"Image size: {self.image_width}x{self.image_height}")
-        rospy.loginfo(f"FOV: {self.fov_deg} degrees")
-        rospy.loginfo(f"Color mode: {self.color_mode}")
-        rospy.loginfo(f"Segmentation image topic: {self.seg_image_topic}")
+        self.odom_sub = message_filters.Subscriber(
+            self, Odometry, self.get_parameter('odometry_topic').value,
+            qos_profile=qos_profile_sensor_data,
+        )
+        self.seg_sub = message_filters.Subscriber(
+            self, SegmentationResult,
+            self.get_parameter('segmentation_topic').value,
+            qos_profile=qos_profile_sensor_data,
+        )
+        self.synchronizer = message_filters.ApproximateTimeSynchronizer(
+            [self.pc_sub, self.odom_sub, self.seg_sub],
+            queue_size=self.get_parameter('sync_queue_size').value,
+            slop=self.get_parameter('sync_slop').value,
+        )
+        self.synchronizer.registerCallback(self.callback)
+
+        self.image_pub = self.create_publisher(
+            Image, self.get_parameter('projected_image_topic').value, 1
+        )
+        self.cloud_pub = self.create_publisher(
+            PointCloud2, self.get_parameter('projected_cloud_topic').value,
+            qos_profile_sensor_data,
+        )
+        self.info_pub = self.create_publisher(
+            ProjectedInstanceInfo,
+            self.get_parameter('projected_info_topic').value, 1,
+        )
+        self.get_logger().info(
+            f'投影节点已启动，图像尺寸={self.image_width}x{self.image_height}'
+        )
+
+    def _read_points(self, message):
+        cloud = point_cloud2.read_points(
+            message, field_names=('x', 'y', 'z'), skip_nans=True
+        )
+        array = np.asarray(cloud)
+        if array.dtype.names:
+            return np.column_stack([array[name] for name in ('x', 'y', 'z')]).astype(
+                np.float64, copy=False
+            )
+        array = np.asarray(list(cloud), dtype=np.float64)
+        return array.reshape((-1, 3))
+
+    def _publish_black_image(self, header):
+        image = np.zeros((self.image_height, self.image_width, 3), dtype=np.uint8)
+        message = self.bridge.cv2_to_imgmsg(image, encoding='bgr8')
+        message.header = header
+        self.image_pub.publish(message)
 
     def callback(self, pc_msg, odom_msg, seg_msg):
         try:
-            # 1. 读取分割结果图像，并与投影图像保持一致尺寸
-            try:
-                seg_image = self.bridge.imgmsg_to_cv2(seg_msg, desired_encoding="bgr8")
-            except CvBridgeError as e:
-                rospy.logwarn(f"Unable to convert segmentation image: {e}")
-                return
-            if seg_image.shape[0:2] != (self.image_height, self.image_width):
-                seg_image = cv2.resize(seg_image, (self.image_width, self.image_height), interpolation=cv2.INTER_NEAREST)
+            self._process_messages(pc_msg, odom_msg, seg_msg)
+        except Exception as exc:
+            self.get_logger().error(f'处理点云失败: {exc}')
 
-            # 2. 将PointCloud2转换为numpy数组
-            gen = pc2.read_points(pc_msg, field_names=("x", "y", "z"), skip_nans=True)
-            points = np.array(list(gen), dtype=np.float32)
-            
-            if points.shape[0] == 0:
-                rospy.logwarn("Received empty point cloud")
-                return
-            
-            # 3. 从里程计获取位姿
-            position = odom_msg.pose.pose.position
-            orientation = odom_msg.pose.pose.orientation
-            
-            # 4. 构建变换矩阵：世界坐标系 -> 相机坐标系
-            trans = translation_matrix([position.x, position.y, position.z])
-            q = [orientation.x, orientation.y, orientation.z, orientation.w]
-            rot_world_to_base = quaternion_matrix(q)
-            base_to_cam = np.array([
-                [0, -1, 0, 0],
-                [0, 0, -1, 0],
-                [1, 0, 0, 0],
-                [0, 0, 0, 1]
-            ])
-            world_to_cam = concatenate_matrices(base_to_cam, np.linalg.inv(rot_world_to_base), np.linalg.inv(trans))
-            
-            # 5. 将点云转换到相机坐标系
-            points_hom = np.hstack((points, np.ones((points.shape[0], 1))))
-            points_cam_hom = np.dot(world_to_cam, points_hom.T).T
-            points_cam = points_cam_hom[:, :3]
-            
-            mask = (points_cam[:, 2] > self.near_plane) & (points_cam[:, 2] < self.far_plane)
-            points_cam_filtered = points_cam[mask]
-            
-            if points_cam_filtered.shape[0] == 0:
-                rospy.logwarn("No points in view frustum")
-                black_image = np.zeros((self.image_height, self.image_width, 3), dtype=np.uint8)
-                self.image_pub.publish(self.bridge.cv2_to_imgmsg(black_image, "bgr8"))
-                return
-            
-            # 6. 透视投影
-            u = (self.fx * points_cam_filtered[:, 0] / points_cam_filtered[:, 2]) + self.cx
-            v = (self.fy * points_cam_filtered[:, 1] / points_cam_filtered[:, 2]) + self.cy
-            u = np.round(u).astype(np.int32)
-            v = np.round(v).astype(np.int32)
-            
-            mask = (u >= 0) & (u < self.image_width) & (v >= 0) & (v < self.image_height)
-            u = u[mask]
-            v = v[mask]
-            points_cam_final = points_cam_filtered[mask]
-            
-            if points_cam_final.shape[0] == 0:
-                rospy.logwarn("No points projected onto image")
-                black_image = np.zeros((self.image_height, self.image_width, 3), dtype=np.uint8)
-                self.image_pub.publish(self.bridge.cv2_to_imgmsg(black_image, "bgr8"))
-                return
-            
-            # 7. 生成彩色图像，默认黑色背景
-            image = np.zeros((self.image_height, self.image_width, 3), dtype=np.uint8)
-            
-            # 根据颜色模式计算基础灰度值
-            if self.color_mode == 'depth':
-                depths = points_cam_final[:, 2]
-                min_depth = np.min(depths)
-                max_depth = np.max(depths)
-                if max_depth > min_depth:
-                    normalized_depth = (depths - min_depth) / (max_depth - min_depth)
-                    normalized_depth = np.clip(normalized_depth, 0.0, 1.0)
-                    pixel_values = 255 - (normalized_depth * 255).astype(np.uint8)
-                else:
-                    pixel_values = np.ones_like(depths, dtype=np.uint8) * 128
-            elif self.color_mode == 'height':
-                heights = points_cam_final[:, 1]
-                min_height = np.min(heights)
-                max_height = np.max(heights)
-                if max_height > min_height:
-                    normalized_height = (heights - min_height) / (max_height - min_height)
-                    pixel_values = (normalized_height * 255).astype(np.uint8)
-                else:
-                    pixel_values = np.ones_like(heights, dtype=np.uint8) * 128
-            else:
-                pixel_values = np.ones_like(u, dtype=np.uint8) * 255
-            
-            # 8. 绘制点云点，使用分割图像颜色覆盖对应像素
-            for i in range(len(u)):
-                seg_color = seg_image[v[i], u[i]]
-                if np.any(seg_color != 0):
-                    point_color = (int(seg_color[0]), int(seg_color[1]), int(seg_color[2]))
-                else:
-                    gray = int(pixel_values[i])
-                    point_color = (gray, gray, gray)
-                cv2.circle(image, (u[i], v[i]), self.point_size, point_color, -1)
-            
-            # 9. 发布彩色图像
-            img_msg = self.bridge.cv2_to_imgmsg(image, "bgr8")
-            img_msg.header = pc_msg.header
-            self.image_pub.publish(img_msg)
-            
-        except Exception as e:
-            rospy.logerr(f"Error processing point cloud: {e}")
+    def _process_messages(self, pc_msg, odom_msg, seg_msg):
+        seg_image = np.zeros(
+            (self.image_height, self.image_width, 3), dtype=np.uint8
+        )
+        if seg_msg.annotated_image.data:
+            try:
+                seg_image = self.bridge.imgmsg_to_cv2(
+                    seg_msg.annotated_image, desired_encoding='bgr8'
+                )
+            except CvBridgeError as exc:
+                self.get_logger().warning(f'标注图像转换失败: {exc}')
+        if seg_image.shape[:2] != (self.image_height, self.image_width):
+            seg_image = cv2.resize(
+                seg_image, (self.image_width, self.image_height),
+                interpolation=cv2.INTER_NEAREST,
+            )
+
+        labels = {
+            int(instance.track_id): instance.class_name or 'unknown'
+            for instance in seg_msg.instances
+        }
+        try:
+            id_map = self.bridge.imgmsg_to_cv2(
+                seg_msg.instance_id_map, desired_encoding='32SC1'
+            )
+        except CvBridgeError as exc:
+            self.get_logger().warning(f'实例 ID 图转换失败: {exc}')
+            id_map = np.zeros(
+                (self.image_height, self.image_width), dtype=np.int32
+            )
+        if id_map.shape != (self.image_height, self.image_width):
+            id_map = cv2.resize(
+                id_map, (self.image_width, self.image_height),
+                interpolation=cv2.INTER_NEAREST,
+            ).astype(np.int32)
+
+        points = self._read_points(pc_msg)
+        if len(points) == 0:
+            self.get_logger().warning('收到空点云')
+            return
+
+        position = odom_msg.pose.pose.position
+        orientation = odom_msg.pose.pose.orientation
+        world_to_base = quaternion_matrix(
+            orientation.x, orientation.y, orientation.z, orientation.w
+        )
+        world_to_base[:3, 3] = [position.x, position.y, position.z]
+        base_to_camera = np.array([
+            [0.0, -1.0, 0.0, 0.0],
+            [0.0, 0.0, -1.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+        ])
+        world_to_camera = base_to_camera @ np.linalg.inv(world_to_base)
+        homogeneous = np.column_stack((points, np.ones(len(points))))
+        camera_points = (world_to_camera @ homogeneous.T).T[:, :3]
+
+        visible = (
+            (camera_points[:, 2] > self.near_plane)
+            & (camera_points[:, 2] < self.far_plane)
+        )
+        camera_points = camera_points[visible]
+        world_points = points[visible]
+        if len(camera_points) == 0:
+            self._publish_black_image(pc_msg.header)
+            return
+
+        u = np.rint(
+            self.fx * camera_points[:, 0] / camera_points[:, 2] + self.cx
+        ).astype(np.int32)
+        v = np.rint(
+            self.fy * camera_points[:, 1] / camera_points[:, 2] + self.cy
+        ).astype(np.int32)
+        inside = (
+            (u >= 0) & (u < self.image_width)
+            & (v >= 0) & (v < self.image_height)
+        )
+        u, v = u[inside], v[inside]
+        camera_points, world_points = camera_points[inside], world_points[inside]
+        if len(camera_points) == 0:
+            self._publish_black_image(pc_msg.header)
+            return
+
+        projected_cloud = point_cloud2.create_cloud_xyz32(
+            pc_msg.header, world_points.astype(np.float32)
+        )
+        self.cloud_pub.publish(projected_cloud)
+
+        instance_ids = id_map[v, u]
+        frame_ids = [int(value) for value in np.unique(instance_ids) if value != 0]
+        info_message = ProjectedInstanceInfo()
+        info_message.header = pc_msg.header
+        for instance_id in frame_ids:
+            instance_points = world_points[instance_ids == instance_id]
+            observation = np.mean(instance_points, axis=0)
+            previous = self.instance_coordinates.get(instance_id, observation)
+            alpha = self.coordinate_ema_alpha
+            coordinate = alpha * observation + (1.0 - alpha) * previous
+            self.instance_coordinates[instance_id] = coordinate
+
+            item = InstanceInfo()
+            item.id = instance_id
+            item.label = labels.get(instance_id, 'unknown')
+            item.coordinate.x, item.coordinate.y, item.coordinate.z = map(
+                float, coordinate
+            )
+            item.other_ids = [value for value in frame_ids if value != instance_id]
+            info_message.instances.append(item)
+        self.info_pub.publish(info_message)
+
+        depths = camera_points[:, 2]
+        depth_range = np.ptp(depths)
+        if depth_range > 0:
+            grayscale = 255 - ((depths - depths.min()) / depth_range * 255).astype(
+                np.uint8
+            )
+        else:
+            grayscale = np.full(len(depths), 128, dtype=np.uint8)
+
+        image = np.zeros((self.image_height, self.image_width, 3), dtype=np.uint8)
+        for index, (pixel_x, pixel_y) in enumerate(zip(u, v)):
+            color = seg_image[pixel_y, pixel_x]
+            if self.color_mode != 'instance' or not np.any(color):
+                color = (grayscale[index],) * 3
+            cv2.circle(
+                image, (int(pixel_x), int(pixel_y)), self.point_size,
+                tuple(map(int, color)), -1,
+            )
+        image_message = self.bridge.cv2_to_imgmsg(image, encoding='bgr8')
+        image_message.header = pc_msg.header
+        self.image_pub.publish(image_message)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = PointCloudProjection()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
 
 if __name__ == '__main__':
-    try:
-        node = PointCloudToImage()
-        rospy.spin()
-    except rospy.ROSInterruptException:
-        pass
+    main()

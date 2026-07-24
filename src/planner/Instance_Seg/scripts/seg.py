@@ -1,140 +1,158 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-ROS节点：订阅RGB图像话题，使用YOLO26/YOLOE进行实例分割和多目标跟踪
-发布处理后的图像到/yoloe/segmentation_result话题
-"""
+"""Run YOLO instance segmentation/tracking on a ROS 2 image topic."""
 
-import rospy
 import cv2
 import numpy as np
-import sys
-
-if tuple(int(x) for x in np.__version__.split('.')[:2]) >= (2, 0):
-    sys.stderr.write(
-        f"ERROR: cv_bridge is incompatible with NumPy {np.__version__}.\n"
-        "ROS Noetic / cv_bridge requires numpy<2.0.\n"
-        "Please downgrade NumPy in your Python environment, e.g. `pip install 'numpy<2'`.\n"
-    )
-    raise SystemExit(1)
-
+import rclpy
 from cv_bridge import CvBridge, CvBridgeError
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
-from ultralytics import YOLO  # 统一使用YOLO类
+try:
+    from ultralytics import YOLO
+except ImportError as exc:
+    raise ImportError(
+        "缺少 ultralytics。请执行: python3 -m pip install --user "
+        "-r src/planner/Instance_Seg/requirements.txt"
+    ) from exc
 
-class YoloeSegmentationTracker:
+from ins_seg.msg import SegInfo, SegmentationResult
+
+
+class YoloSegmentationTracker(Node):
     def __init__(self):
-        # 使用仿真时间，配合 rosbag play --clock
-        rospy.set_param('/use_sim_time', True)
-        # 初始化ROS节点
-        rospy.init_node('yoloe_seg_node', anonymous=True)
-        
-        # 获取ROS参数（与你的launch文件参数名一致）
-        self.image_topic = rospy.get_param('~image_topic', '/camera/rgb/image_raw')
-        self.model_path = rospy.get_param('~model_path', '/home/k325/models/YoloE/yolo26n-seg.pt')
-        self.conf_threshold = rospy.get_param('~confidence_threshold', 0.5)  # 与launch文件参数名匹配
-        self.iou_threshold = rospy.get_param('~iou_threshold', 0.5)
-        self.tracker_type = rospy.get_param('~tracker_type', 'botsort.yaml')
-        self.device = rospy.get_param('~device', 'cuda:0')  # 或 'cpu'
-        self.show_result = rospy.get_param('~show_result', False)
-        self.publish_result = rospy.get_param('~publish_result', True)
-        self.classes = rospy.get_param('~classes', None)  # 例如: [0, 2, 3] 对应person, car, motorcycle
-        
-        # 初始化CV Bridge
-        try:
-            self.bridge = CvBridge()
-        except Exception as e:
-            rospy.logerr(
-                "无法初始化 cv_bridge。这通常是由于 NumPy 2.x 与 ROS Noetic cv_bridge 不兼容。"
-            )
-            rospy.logerr(f"详细错误: {e}")
-            rospy.signal_shutdown("cv_bridge 初始化失败")
-            return
-        
-        # 加载模型（修正后的加载方式）
-        rospy.loginfo(f"正在加载模型: {self.model_path}")
-        try:
-            # 所有模型统一使用YOLO()类加载，直接传入路径
-            self.model = YOLO(self.model_path)
-            rospy.loginfo("模型加载成功")
-        except Exception as e:
-            rospy.logerr(f"模型加载失败: {e}")
-            rospy.signal_shutdown("模型加载失败")
-            return
-        
-        # 设置发布者
-        if self.publish_result:
-            self.result_pub = rospy.Publisher('/yoloe/segmentation_result', Image, queue_size=1)
-        
-        # 订阅图像话题
-        self.image_sub = rospy.Subscriber(self.image_topic, Image, self.image_callback)
-        
-        rospy.loginfo(f"已订阅图像话题: {self.image_topic}")
-        rospy.loginfo("实例分割与跟踪节点已启动")
-    
+        super().__init__('yolo_segmentation_tracker')
+
+        self.declare_parameter('image_topic', '/camera/color/image_raw')
+        self.declare_parameter('result_topic', '/yoloe/segmentation')
+        self.declare_parameter('annotated_topic', '/yoloe/annotated_image')
+        self.declare_parameter('model_path', 'yolo11n-seg.pt')
+        self.declare_parameter('confidence_threshold', 0.5)
+        self.declare_parameter('iou_threshold', 0.5)
+        self.declare_parameter('tracker_type', 'botsort.yaml')
+        self.declare_parameter('device', 'cpu')
+        self.declare_parameter('show_result', False)
+        self.declare_parameter('publish_annotated', True)
+        self.declare_parameter('classes', [])
+
+        image_topic = self.get_parameter('image_topic').value
+        result_topic = self.get_parameter('result_topic').value
+        annotated_topic = self.get_parameter('annotated_topic').value
+        model_path = self.get_parameter('model_path').value
+        self.confidence_threshold = self.get_parameter('confidence_threshold').value
+        self.iou_threshold = self.get_parameter('iou_threshold').value
+        self.tracker_type = self.get_parameter('tracker_type').value
+        self.device = self.get_parameter('device').value
+        self.show_result = self.get_parameter('show_result').value
+        self.publish_annotated = self.get_parameter('publish_annotated').value
+        configured_classes = self.get_parameter('classes').value
+        self.classes = list(configured_classes) if configured_classes else None
+
+        self.bridge = CvBridge()
+        self.get_logger().info(f'正在加载模型: {model_path}')
+        self.model = YOLO(model_path)
+
+        self.result_pub = self.create_publisher(SegmentationResult, result_topic, 1)
+        self.annotated_pub = self.create_publisher(Image, annotated_topic, 1)
+        self.image_sub = self.create_subscription(
+            Image, image_topic, self.image_callback, qos_profile_sensor_data
+        )
+        self.get_logger().info(f'实例分割节点已启动，订阅: {image_topic}')
+
+    def _build_instance_id_map(self, result, image_shape):
+        id_map = np.zeros(image_shape[:2], dtype=np.int32)
+        instances = []
+
+        if result.boxes is None or result.boxes.id is None:
+            return id_map, instances
+
+        track_ids = result.boxes.id.cpu().numpy().astype(int)
+        class_ids = result.boxes.cls.cpu().numpy()
+        confidences = result.boxes.conf.cpu().numpy()
+        masks = result.masks.data.cpu().numpy() if result.masks is not None else []
+
+        for index, track_id in enumerate(track_ids):
+            instance = SegInfo()
+            instance.track_id = int(track_id)
+            instance.class_name = str(result.names[int(class_ids[index])])
+            instance.confidence = float(confidences[index])
+            instances.append(instance)
+
+            if index >= len(masks):
+                continue
+            mask = masks[index].astype(np.uint8)
+            if mask.shape != image_shape[:2]:
+                mask = cv2.resize(
+                    mask, (image_shape[1], image_shape[0]),
+                    interpolation=cv2.INTER_NEAREST
+                )
+            id_map[mask.astype(bool)] = int(track_id)
+
+        return id_map, instances
+
     def image_callback(self, msg):
         try:
-            # 将ROS图像消息转换为OpenCV格式 (BGR)
-            cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
-        except CvBridgeError as e:
-            rospy.logerr(f"图像转换错误: {e}")
-            return
-        
-        # 执行跟踪和实例分割
-        try:
+            cv_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             results = self.model.track(
                 source=cv_image,
-                conf=self.conf_threshold,
+                conf=self.confidence_threshold,
                 iou=self.iou_threshold,
                 tracker=self.tracker_type,
                 device=self.device,
                 classes=self.classes,
-                persist=True,  # 保持目标ID连续性
-                verbose=False  # 关闭详细输出
+                persist=True,
+                verbose=False,
             )
-        except Exception as e:
-            rospy.logerr(f"推理错误: {e}")
+        except (CvBridgeError, Exception) as exc:
+            self.get_logger().error(f'图像处理或推理失败: {exc}')
             return
-        
-        # 处理结果
-        if results and len(results) > 0:
-            result = results[0]
-            
-            # 绘制结果（包含边界框、分割掩码和跟踪ID）
+
+        if not results:
+            return
+
+        result = results[0]
+        id_map, instances = self._build_instance_id_map(result, cv_image.shape)
+        output = SegmentationResult()
+        output.header = msg.header
+        output.instance_id_map = self.bridge.cv2_to_imgmsg(id_map, encoding='32SC1')
+        output.instance_id_map.header = msg.header
+        output.instances = instances
+
+        annotated_image = None
+        if self.publish_annotated or self.show_result:
             annotated_image = result.plot()
-            
-            # 显示结果
-            if self.show_result:
-                cv2.imshow("实例分割与跟踪结果", annotated_image)
-                cv2.waitKey(1)
-            
-            # 发布结果图像
-            if self.publish_result:
-                try:
-                    result_msg = self.bridge.cv2_to_imgmsg(annotated_image, "bgr8")
-                    result_msg.header = msg.header  # 保持时间戳和帧ID一致
-                    self.result_pub.publish(result_msg)
-                except CvBridgeError as e:
-                    rospy.logerr(f"结果图像发布错误: {e}")
-            
-            # 可选：打印检测到的目标信息
-            if result.boxes.id is not None:
-                track_ids = result.boxes.id.cpu().numpy().astype(int)
-                class_names = [result.names[int(cls)] for cls in result.boxes.cls.cpu().numpy()]
-                confidences = result.boxes.conf.cpu().numpy()
-                
-                rospy.loginfo(f"检测到 {len(track_ids)} 个目标:")
-                for track_id, class_name, confidence in zip(track_ids, class_names, confidences):
-                    rospy.loginfo(f"  ID: {track_id}, 类别: {class_name}, 置信度: {confidence:.2f}")
-    
-    def run(self):
-        rospy.spin()
+            output.annotated_image = self.bridge.cv2_to_imgmsg(
+                annotated_image, encoding='bgr8'
+            )
+            output.annotated_image.header = msg.header
+        if self.publish_annotated:
+            self.annotated_pub.publish(output.annotated_image)
+
+        self.result_pub.publish(output)
+        if self.show_result and annotated_image is not None:
+            cv2.imshow('实例分割与跟踪结果', annotated_image)
+            cv2.waitKey(1)
+
+    def destroy_node(self):
         if self.show_result:
             cv2.destroyAllWindows()
+        super().destroy_node()
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = None
+    try:
+        node = YoloSegmentationTracker()
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if node is not None:
+            node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
+
 
 if __name__ == '__main__':
-    try:
-        node = YoloeSegmentationTracker()
-        node.run()
-    except rospy.ROSInterruptException:
-        rospy.loginfo("节点已终止")
+    main()

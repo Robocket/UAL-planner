@@ -1,24 +1,20 @@
 cmake_minimum_required(VERSION 3.8)
-project(ins_seg)
+project(auto_landing)
 
 find_package(ament_cmake REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
-find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/InstanceInfo.msg"
-  "msg/ProjectedInstanceInfo.msg"
-  "msg/SegInfo.msg"
-  "msg/SegmentationResult.msg"
-  DEPENDENCIES geometry_msgs sensor_msgs std_msgs
+  "msg/LandingRegion.msg"
+  "msg/LandingRegionArray.msg"
+  DEPENDENCIES geometry_msgs std_msgs
 )
 
 install(PROGRAMS
-  scripts/graph.py
-  scripts/projection.py
-  scripts/seg.py
+  scripts/evaluate.py
+  scripts/track_landing_point.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
