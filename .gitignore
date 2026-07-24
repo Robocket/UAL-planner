@@ -1,0 +1,67 @@
+# ROS / catkin / colcon build artifacts
+/build/
+/devel/
+/install/
+/log/
+/.catkin_tools/
+/.colcon/
+
+# CMake build artifacts (including in-source builds)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Makefile
+compile_commands.json
+Testing/
+
+# Compiled binaries and libraries
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.o
+*.obj
+
+# Python caches, environments, and packaging output
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+
+# Logs and runtime artifacts
+*.log
+*.bag
+*.bag.active
+*.db3
+*.pid
+core
+core.*
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+pswd.txt
+*.pem
+*.key
+
+# Editor and OS metadata
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
