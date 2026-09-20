@@ -1,0 +1,71 @@
+# UAL-planner D1 sensor/interface profile. Algorithm thresholds override
+# common.yaml only where the existing D1 test preset differs.
+yolo_segmentation_tracker:
+  ros__parameters:
+    use_sim_time: false
+    image_topic: /camera/color/image_raw
+
+pointcloud_projection:
+  ros__parameters:
+    use_sim_time: false
+    # Camera calibration currently migrated from the existing projection node.
+    # Replace these values with the calibration of the actual D1/camera rig.
+    image_width: 640
+    image_height: 480
+    fov_deg: 87.0
+    fx: 385.45
+    fy: 385.45
+    cx: -1.0
+    cy: -1.0
+    pointcloud_topic: /iv_points
+    pointcloud_frame: sensor
+    odometry_topic: /Odometry
+    # Empty means follow the Odometry parent frame at runtime.
+    output_frame: ""
+    # D1 coordinate_mode=3 point cloud -> aircraft base: Ry(+pi/2).
+    lidar_to_base: [0.0, 0.0, 1.0, 0.0,
+                    0.0, 1.0, 0.0, 0.0,
+                    -1.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 1.0]
+    # Row-major aircraft base -> camera optical frame transform.
+    base_to_camera: [0.0, -1.0, 0.0, 0.0,
+                     0.0, 0.0, -1.0, 0.0,
+                     1.0, 0.0, 0.0, 0.0,
+                     0.0, 0.0, 0.0, 1.0]
+
+instance_graph:
+  ros__parameters:
+    use_sim_time: false
+
+landing_evaluator:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: /iv_points
+    output_frame: base_link
+    extrinsics.translation: [0.0, 0.0, 0.0]
+    extrinsics.rotation_rpy: [0.0, 1.5707963267948966, 0.0]
+    imu.enabled: true
+    imu.required: true
+    imu.topic: /iv_imu
+    imu.extrinsics.rotation_rpy: [3.141592653589793, 1.5707963267948966, 0.0]
+    imu.timeout_sec: 0.3
+    imu.filter_alpha: 0.6
+    landing_radius: 2.5
+    min_range: 1.0
+    max_range: 60.0
+    min_roi_points: 50
+    ransac_distance: 0.1
+    max_slope_deg: 10.0
+    grid_resolution: 0.6
+    max_step_height: 0.25
+    confirmation_frames: 2
+    watchdog.cloud_timeout_sec: 0.60
+    watchdog.publish_period_sec: 0.10
+
+landing_rviz_visualizer:
+  ros__parameters:
+    use_sim_time: false
+
+ual_planner_rviz:
+  ros__parameters:
+    use_sim_time: false

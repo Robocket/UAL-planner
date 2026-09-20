@@ -1,15 +1,17 @@
-# UAL Planner (ROS 2 Humble)
+# UAL Planner
 
-该仓库已迁移到 Ubuntu 22.04 对应的 ROS 2 Humble。`ins_seg` 包包含实例分割、
-点云投影和实例图维护三个 Python 节点。
+主开发环境为 Ubuntu 24.04 / ROS 2 Jazzy。统一启动层将实例分割、点云投影、
+实例图维护和 C++ 降落面评估作为四个并列算法节点。部署层计划同时适配 ROS 1 Noetic；
+算法实现保持中间件无关，Jazzy 与 Noetic 分别使用自己的节点包装和 launch。兼容边界见
+[`docs/ros_compatibility.md`](docs/ros_compatibility.md)。
 
 ## 安装依赖
 
 ```bash
-source /opt/ros/humble/setup.bash
+source /opt/ros/jazzy/setup.bash
 sudo apt update
 rosdep install --from-paths src --ignore-src -r -y
-python3 -m pip install --user -r src/planner/Instance_Seg/requirements.txt
+python3 -m pip install --user -r src/Instance_Seg/requirements.txt
 ```
 
 如果使用 NVIDIA GPU，还需要按显卡和 CUDA 版本安装匹配的 PyTorch；默认启动参数
@@ -17,68 +19,83 @@ python3 -m pip install --user -r src/planner/Instance_Seg/requirements.txt
 
 ## 构建
 
+推荐使用仓库提供的隔离构建入口。它不会继承当前终端中可能残留的 Humble/Noetic
+路径，并将 Jazzy 产物放入独立目录：
+
 ```bash
-source /opt/ros/humble/setup.bash
-colcon build --symlink-install
-source install/setup.bash
+./scripts/build_jazzy.sh
+source install/jazzy/setup.bash
 ```
 
-如果工作区中残留旧版 ROS 1 的 `build`、`devel` 目录，应先备份需要的内容，再清理
-这些生成目录后重新构建。不要在同一个终端同时 source ROS 1 和 ROS 2 环境。
+可以把标准 `colcon build` 参数继续传给脚本，例如：
+
+```bash
+./scripts/build_jazzy.sh --packages-select landing_evaluator ins_seg
+```
+
+不要在同一个构建目录或终端中混用 Noetic、Humble 与 Jazzy 的环境变量。当前目录中若有
+旧的默认 `build/包名`、`install/包名`，脚本不会读取或覆盖它们；Noetic 适配层也应使用
+独立 catkin 工作空间。
 
 ## 启动
 
-默认模型使用 Ultralytics 可自动获取的 `yolo11n-seg.pt`：
+默认按仓库根目录的 `config/common.yaml` 与 `config/d1.yaml` 叠加配置，启动全部
+并列算法节点：
 
 ```bash
-ros2 launch ins_seg seg.launch.py
+ros2 launch ual_planner_bringup d1.launch.py
 ```
 
-指定本地模型或 GPU：
+切换雷达/相机组合时使用对应 launch，算法节点不需要修改：
 
 ```bash
-ros2 launch ins_seg seg.launch.py \
-  model_path:=/absolute/path/to/model.pt device:=cuda:0
+ros2 launch ual_planner_bringup avia.launch.py
+ros2 launch ual_planner_bringup hil_sim.launch.py
+```
+
+只调试部分链路时，可通过统一入口关闭节点：
+
+```bash
+ros2 launch ual_planner_bringup d1.launch.py \
+  start_landing_evaluator:=false start_instance_graph:=false
+```
+
+模型路径、推理设备以及所有算法阈值均在 `config/common.yaml` 中配置；设备话题、坐标系、
+雷达/相机标定和少量设备相关阈值在 `config/d1.yaml`、`config/avia.yaml` 或
+`config/hil_sim.yaml` 中覆盖。也可直接调用通用入口加载自定义设备配置：
+
+```bash
+ros2 launch ual_planner_bringup ual_planner.launch.py \
+  sensor_config:=/absolute/path/to/device.yaml
 ```
 
 启动 RViz：
 
 ```bash
-ros2 launch ins_seg rviz.launch.py
+ros2 launch ual_planner_bringup rviz.launch.py
 ```
 
-## 点云降落区域评估
-
-`pointcloud_projection` 会将相机视野内、保持原始世界坐标的点云发布到
-`/projected_cloud`。降落评估节点要求该坐标系已经与重力对齐（Z 轴向上）：
+也可以与算法节点一起启动：
 
 ```bash
-ros2 launch auto_landing evaluate.launch.py
+ros2 launch ual_planner_bringup d1.launch.py start_rviz:=true
 ```
 
-主要输出：
+## 点云降落面评估
 
-- `/landing/regions`：连通降落区域；包含中心、可信度、面积、等效半径、平均坡度、
-  平均粗糙度和支撑点数。
-- `/landing/confidence_cloud`：带 `confidence` 字段的候选中心点云。
-- `/landing/markers`：RViz 圆形落点和可信度文字，绿色可信度高、红色可信度低。
+`Landing_Obstacle_Warning` 中的 `landing_evaluator_node` 与其他算法处于同一级，不属于
+`ins_seg` 的子节点。D1 配置下，降落评估和点云投影都直接接收 `/iv_points`；投影节点按
+同一设备外参完成 sensor → base → world 转换，降落评估则在局部重力对齐坐标中判定，
+二者不再使用互相冲突的点云入口。
 
-可信度范围为 0–1，由坡度、粗糙度、点密度、单格高度跨度和无人机圆形占地范围内
-的安全净空共同计算。默认占地安全半径为 `drone_radius + safety_margin`，即
-`0.5 + 0.15 m`。可通过 ROS 2 参数覆盖，例如：
+D1 配置中的尺寸、量程和安全阈值是测试初值，不是通用实机安全结论。更换机体、安装
+位置或传感器后，必须重新标定外参并核定阈值。
 
-```bash
-ros2 run auto_landing evaluate.py --ros-args \
-  -p drone_radius:=0.7 \
-  -p safety_margin:=0.2 \
-  -p max_slope_deg:=8.0 \
-  -p max_roughness:=0.03
-```
-
-默认输入话题为：
+根目录 D1 设备配置的输入话题为：
 
 - RGB 图像：`/camera/color/image_raw`
-- 注册点云：`/cloud_registered`
+- 原始点云：`/iv_points`
+- IMU：`/iv_imu`
 - 里程计：`/Odometry`
 
-可在 `seg.launch.py` 中调整，也可以单独运行节点并通过 ROS 2 参数覆盖。
+设备驱动本身不由总 launch 启动；总 launch 只消费这些标准接口。

@@ -1,0 +1,67 @@
+# UAL-planner Avia half-in-the-loop sensor/interface profile.
+yolo_segmentation_tracker:
+  ros__parameters:
+    use_sim_time: true
+    image_topic: /camera/color/image_raw
+
+pointcloud_projection:
+  ros__parameters:
+    use_sim_time: true
+    image_width: 640
+    image_height: 480
+    fov_deg: 87.0
+    fx: 385.45
+    fy: 385.45
+    cx: -1.0
+    cy: -1.0
+    pointcloud_topic: /livox/avia/points
+    pointcloud_frame: sensor
+    odometry_topic: /gt/odom
+    output_frame: 981-A/odom
+    lidar_to_base: [0.0, 0.0, 1.0, 0.0,
+                    0.0, 1.0, 0.0, 0.0,
+                    -1.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 1.0]
+    base_to_camera: [0.0, -1.0, 0.0, 0.0,
+                     0.0, 0.0, -1.0, 0.0,
+                     1.0, 0.0, 0.0, 0.0,
+                     0.0, 0.0, 0.0, 1.0]
+
+instance_graph:
+  ros__parameters:
+    use_sim_time: true
+
+landing_evaluator:
+  ros__parameters:
+    use_sim_time: true
+    input_topic: /livox/avia/points
+    output_frame: base_link
+    extrinsics.translation: [0.0, 0.0, 0.0]
+    extrinsics.rotation_rpy: [0.0, 1.5707963267948966, 0.0]
+    imu.enabled: true
+    imu.required: true
+    imu.topic: /landing/sim_gravity_imu
+    imu.extrinsics.rotation_rpy: [0.0, 0.0, 0.0]
+    imu.timeout_sec: 0.50
+    imu.filter_alpha: 1.0
+    imu.max_angular_velocity: 2.0
+    landing_radius: 1.25
+    grid_resolution: 0.20
+    watchdog.cloud_timeout_sec: 0.50
+
+landing_odom_gravity_adapter:
+  ros__parameters:
+    use_sim_time: true
+    input_topic: /gt/odom
+    output_topic: /landing/sim_gravity_imu
+    world_up_z: 1.0
+    expected_parent_frame: 981-A/odom
+    expected_child_frame: 981-A/base_footprint
+
+landing_rviz_visualizer:
+  ros__parameters:
+    use_sim_time: true
+
+ual_planner_rviz:
+  ros__parameters:
+    use_sim_time: true

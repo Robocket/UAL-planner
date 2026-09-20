@@ -1,0 +1,57 @@
+# UAL-planner Livox Avia sensor/interface profile.
+yolo_segmentation_tracker:
+  ros__parameters:
+    use_sim_time: false
+    image_topic: /camera/color/image_raw
+
+pointcloud_projection:
+  ros__parameters:
+    use_sim_time: false
+    # Replace with the calibration of the actual Avia/camera rig.
+    image_width: 640
+    image_height: 480
+    fov_deg: 87.0
+    fx: 385.45
+    fy: 385.45
+    cx: -1.0
+    cy: -1.0
+    pointcloud_topic: /livox/lidar
+    pointcloud_frame: sensor
+    odometry_topic: /Odometry
+    # Empty means follow the Odometry parent frame at runtime.
+    output_frame: ""
+    lidar_to_base: [0.0, 0.0, 1.0, 0.0,
+                    0.0, 1.0, 0.0, 0.0,
+                    -1.0, 0.0, 0.0, 0.0,
+                    0.0, 0.0, 0.0, 1.0]
+    base_to_camera: [0.0, -1.0, 0.0, 0.0,
+                     0.0, 0.0, -1.0, 0.0,
+                     1.0, 0.0, 0.0, 0.0,
+                     0.0, 0.0, 0.0, 1.0]
+
+instance_graph:
+  ros__parameters:
+    use_sim_time: false
+
+landing_evaluator:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: /livox/lidar
+    output_frame: base_link
+    extrinsics.translation: [0.0, 0.0, 0.0]
+    extrinsics.rotation_rpy: [0.0, 1.5707963267948966, 0.0]
+    imu.enabled: true
+    imu.required: true
+    imu.topic: /livox/imu
+    imu.extrinsics.rotation_rpy: [0.0, 1.5707963267948966, 0.0]
+    landing_radius: 1.25
+    grid_resolution: 0.10
+    landable_log_delay_sec: 2.0
+
+landing_rviz_visualizer:
+  ros__parameters:
+    use_sim_time: false
+
+ual_planner_rviz:
+  ros__parameters:
+    use_sim_time: false

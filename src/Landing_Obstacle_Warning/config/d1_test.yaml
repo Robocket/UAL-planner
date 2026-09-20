@@ -1,0 +1,83 @@
+landing_evaluator:
+  ros__parameters:
+    # Seyond D1 driver output (sensor_msgs/msg/PointCloud2).
+    input_topic: /iv_points
+    output_topic: /landing/status
+    height_map_topic: /landing/height_map
+    output_frame: base_link
+
+    # D1-R manual raw axes: X up, Y right, Z forward. Point origin is the
+    # centre of the RX lens surface. The Seyond driver coordinate_mode=3
+    # converts that to X forward, Y left, Z up.
+    #
+    # Test mounting assumption: the MANUAL RAW +Z (sensor forward axis) points
+    # along gravity. After coordinate_mode=3, driver +X therefore points down.
+    # A +pi/2 pitch maps driver axes to base_link with +Z up. Rotation about
+    # the gravity axis does not affect the circular ROI, but must be calibrated
+    # if map X/Y orientation is consumed downstream.
+    # Replace translation with the RX lens centre expressed in base_link.
+    extrinsics.translation: [0.0, 0.0, 0.0]
+    extrinsics.rotation_rpy: [0.0, 1.5707963267948966, 0.0]
+    # Measured D1 relationship with coordinate_mode=3:
+    #   lens/manual +Z down -> imu_x=-g
+    #   manual +X down      -> imu_z=+g
+    #   manual +Y down      -> imu_y=-g
+    # Therefore IMU -> driver point-cloud axes is Rx(pi). Compose it with the
+    # point-cloud -> base Ry(+pi/2): R_imu_base = Ry(+pi/2) * Rx(pi).
+    # Euler order used by the node is Rz(yaw) * Ry(pitch) * Rx(roll).
+    imu.extrinsics.rotation_rpy: [3.141592653589793, 1.5707963267948966, 0.0]
+
+    # The Seyond D1 driver does not publish IMU by default. Keep compensation
+    # disabled for the first level-hover test. Enable only a separately
+    # calibrated IMU and set its real topic here.
+    imu.enabled: true
+    imu.required: true
+    imu.topic: /iv_imu
+    imu.timeout_sec: 0.3
+    # Exponential moving average of normalized acceleration direction:
+    # previous filtered frame 0.4 + current frame 0.6.
+    imu.filter_alpha: 0.6
+    # Slow adaptation of the accepted acceleration-magnitude reference.
+    imu.gravity_norm_filter_alpha: 0.01
+    imu.max_angular_velocity: 0.8
+    imu.max_accel_deviation_ratio: 0.30
+
+    # Start immediately for bench/hover testing. Set false for flight-controller control.
+    startup_enabled: true
+    enable_topic: /landing_evaluator/enable
+
+    # Aircraft footprint radius including propellers and safety margin.
+    # Replace this value with the measured aircraft requirement.
+    landing_radius: 2.5
+    # Manual detection range starts at 0.5 m. Keep the landing application
+    # upper bound at 60 m even though the sensor specification extends farther.
+    min_range: 1.0
+    max_range: 60.0
+    min_roi_points: 50
+
+    ransac_iterations: 60
+    # Fixed seed makes the bounded RANSAC result reproducible during tuning.
+    ransac_seed: 1279348292
+    ransac_distance: 0.1
+    ransac_early_exit_ratio: 0.90
+    max_slope_deg: 10.0
+    max_roughness_rms: 0.05
+    max_roughness_p95: 0.08
+
+    grid_resolution: 0.6
+    # Hard allocation guard for the square backing grid.
+    max_grid_cells: 1000000
+    grid_min_points: 2
+    min_coverage_ratio: 0.80
+    min_inlier_ratio: 0.70
+    max_step_height: 0.25
+
+    airspace_clearance_height: 0.12
+    airspace_ceiling_z: -0.10
+    airspace_min_points: 3
+    max_occupied_cell_ratio: 0.0
+
+    confirmation_frames: 2
+    landable_log_delay_sec: 5.0
+    watchdog.cloud_timeout_sec: 0.60
+    watchdog.publish_period_sec: 0.10
