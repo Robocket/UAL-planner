@@ -15,7 +15,18 @@ python3 -m pip install --user -r src/Instance_Seg/requirements.txt
 ```
 
 如果使用 NVIDIA GPU，还需要按显卡和 CUDA 版本安装匹配的 PyTorch；默认启动参数
-使用 CPU，不要求 CUDA。
+使用 `device: auto`，检测到 CUDA 时优先使用 GPU。SAM 3 官方运行基线要求较新的
+CUDA GPU，CPU 仅适合接口调试。
+
+实例分割使用 Meta SAM 3 官方代码和文本提示 `large ship`，不读取本地训练权重。首次启动
+会自动从 Hugging Face 的 `facebook/sam3` 下载并缓存权重。该仓库需要先接受 Meta 的模型
+许可并登录一次：
+
+```bash
+hf auth login
+```
+
+之后正常启动节点即可自动下载；无需配置 `model_path`。
 
 ## 构建
 
@@ -60,7 +71,7 @@ ros2 launch ual_planner_bringup d1.launch.py \
   start_landing_evaluator:=false start_instance_graph:=false
 ```
 
-模型路径、推理设备以及所有算法阈值均在 `config/common.yaml` 中配置；设备话题、坐标系、
+SAM 3 文本提示、推理设备以及所有算法阈值均在 `config/common.yaml` 中配置；设备话题、坐标系、
 雷达/相机标定和少量设备相关阈值在 `config/d1.yaml`、`config/avia.yaml` 或
 `config/hil_sim.yaml` 中覆盖。也可直接调用通用入口加载自定义设备配置：
 
@@ -79,6 +90,15 @@ ros2 launch ual_planner_bringup rviz.launch.py
 
 ```bash
 ros2 launch ual_planner_bringup d1.launch.py start_rviz:=true
+```
+
+Scene_Water 转换包使用 `/left_camera/image`、`/livox/avia/points`、
+`/fsdk/aircraft_state` 和 `/livox/imu`。其点云/IMU frame 为 `avia_frame`，里程计父/子
+frame 为 `map`/`base_link`；分割可视化显示原始输入点云和投影图像，因此专用 RViz 的
+Fixed Frame 使用 `avia_frame`：
+
+```bash
+ros2 launch ual_planner_bringup scene_water.launch.py start_rviz:=true
 ```
 
 ## 点云降落面评估

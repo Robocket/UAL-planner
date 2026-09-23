@@ -16,6 +16,7 @@ def generate_launch_description():
     share = get_package_share_directory('ual_planner_bringup')
     common_config = LaunchConfiguration('common_config')
     sensor_config = LaunchConfiguration('sensor_config')
+    rviz_config = LaunchConfiguration('rviz_config')
     parameter_files = [common_config, sensor_config]
 
     return LaunchDescription([
@@ -29,6 +30,11 @@ def generate_launch_description():
             default_value=os.path.join(share, 'config', 'd1.yaml'),
             description='Radar/camera topics, frames, extrinsics and overrides',
         ),
+        DeclareLaunchArgument(
+            'rviz_config',
+            default_value=os.path.join(share, 'rviz', 'ual_planner.rviz'),
+            description='RViz display configuration for the selected profile',
+        ),
         DeclareLaunchArgument('start_segmentation', default_value='true'),
         DeclareLaunchArgument('start_projection', default_value='true'),
         DeclareLaunchArgument('start_instance_graph', default_value='true'),
@@ -40,7 +46,7 @@ def generate_launch_description():
         Node(
             package='ins_seg',
             executable='seg.py',
-            name='yolo_segmentation_tracker',
+            name='sam3_segmentation',
             output='screen',
             parameters=parameter_files,
             condition=IfCondition(LaunchConfiguration('start_segmentation')),
@@ -78,6 +84,7 @@ def generate_launch_description():
             launch_arguments={
                 'common_config': common_config,
                 'sensor_config': sensor_config,
+                'rviz_config': rviz_config,
             }.items(),
             condition=IfCondition(LaunchConfiguration('start_rviz')),
         ),

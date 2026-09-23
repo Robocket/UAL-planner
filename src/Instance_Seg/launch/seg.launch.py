@@ -7,22 +7,22 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    model_path = LaunchConfiguration('model_path')
+    text_prompt = LaunchConfiguration('text_prompt')
     device = LaunchConfiguration('device')
     use_sim_time = LaunchConfiguration('use_sim_time')
 
     return LaunchDescription([
-        DeclareLaunchArgument('model_path', default_value='yolo11n-seg.pt'),
-        DeclareLaunchArgument('device', default_value='cpu'),
+        DeclareLaunchArgument('text_prompt', default_value='large ship'),
+        DeclareLaunchArgument('device', default_value='auto'),
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         Node(
             package='ins_seg',
             executable='seg.py',
-            name='yolo_segmentation_tracker',
+            name='sam3_segmentation',
             output='screen',
             parameters=[{
                 'use_sim_time': use_sim_time,
-                'model_path': model_path,
+                'text_prompt': text_prompt,
                 'device': device,
             }],
         ),

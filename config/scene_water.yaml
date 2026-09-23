@@ -1,29 +1,36 @@
-# UAL-planner Livox Avia sensor/interface profile.
+# Interface profile for the converted Scene_Water rosbag.
+# Original bag topics /left_camera/image/compressed and /livox/lidar use
+# CompressedImage and livox_avia_driver/CustomMsg. UAL consumes the converted
+# sensor_msgs/Image and sensor_msgs/PointCloud2 topics listed below.
 sam3_segmentation:
   ros__parameters:
     use_sim_time: false
-    image_topic: /camera/color/image_raw
+    image_topic: /left_camera/image
 
 pointcloud_projection:
   ros__parameters:
     use_sim_time: false
-    # Replace with the calibration of the actual Avia/camera rig.
-    image_width: 640
-    image_height: 480
+    # Verified from /left_camera/image in the converted bag.
+    image_width: 1280
+    image_height: 1024
     fov_deg: 87.0
-    fx: 385.45
-    fy: 385.45
+    # Negative values select the FOV fallback until camera calibration is known.
+    fx: -1.0
+    fy: -1.0
     cx: -1.0
     cy: -1.0
-    pointcloud_topic: /livox/lidar
+    pointcloud_topic: /livox/avia/points
     pointcloud_frame: sensor
-    odometry_topic: /Odometry
-    # Empty means follow the Odometry parent frame at runtime.
-    output_frame: ""
+    odometry_topic: /fsdk/aircraft_state
+    # /fsdk/aircraft_state.header.frame_id is "map".
+    output_frame: map
+    # /livox/avia/points.header.frame_id is "avia_frame".
     lidar_to_base: [0.0, 0.0, 1.0, 0.0,
                     0.0, 1.0, 0.0, 0.0,
                     -1.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, 1.0]
+    # Existing placeholder; replace with the measured aircraft-to-camera
+    # calibration before using projected geometry quantitatively.
     base_to_camera: [0.0, -1.0, 0.0, 0.0,
                      0.0, 0.0, -1.0, 0.0,
                      1.0, 0.0, 0.0, 0.0,
@@ -36,7 +43,7 @@ instance_graph:
 landing_evaluator:
   ros__parameters:
     use_sim_time: false
-    input_topic: /livox/lidar
+    input_topic: /livox/avia/points
     output_frame: base_link
     extrinsics.translation: [0.0, 0.0, 0.0]
     extrinsics.rotation_rpy: [0.0, 1.5707963267948966, 0.0]

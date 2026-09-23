@@ -50,7 +50,7 @@ class PointCloudProjection(Node):
             'color_mode': 'instance',
             'pointcloud_topic': '/cloud_registered',
             'odometry_topic': '/Odometry',
-            'segmentation_topic': '/yoloe/segmentation',
+            'segmentation_topic': '/sam3/segmentation',
             'projected_image_topic': '/projected_image',
             'projected_cloud_topic': '/projected_cloud',
             'projected_info_topic': '/projected_instance_info',

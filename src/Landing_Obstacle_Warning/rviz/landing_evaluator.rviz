@@ -1,20 +1,24 @@
 Panels:
   - Class: rviz_common/Displays
+    Help Height: 70
     Name: Displays
     Property Tree Widget:
       Expanded:
+        - /Livox PointCloud1
         - /Landing Evaluation1
         - /Landing Evaluation1/Plane, Boundary, Status1
-      Splitter Ratio: 0.55
-    Tree Height: 520
+      Splitter Ratio: 0.550000011920929
+    Tree Height: 325
   - Class: rviz_common/Selection
     Name: Selection
   - Class: rviz_common/Tool Properties
+    Expanded: ~
     Name: Tool Properties
+    Splitter Ratio: 0.5
 Visualization Manager:
   Class: ""
   Displays:
-    - Alpha: 0.22
+    - Alpha: 0.2199999988079071
       Autocompute Intensity Bounds: true
       Autocompute Value Bounds:
         Max Value: 10
@@ -24,18 +28,19 @@ Visualization Manager:
       Channel Name: intensity
       Class: rviz_default_plugins/PointCloud2
       Color: 75; 85; 95
-      Color Transformer: FlatColor
-      Decay Time: 3
+      Color Transformer: Intensity
+      Decay Time: 0.5
       Enabled: true
-      Invert Rainbow: false
+      Invert Rainbow: true
       Max Color: 110; 120; 130
+      Max Intensity: 255
       Min Color: 35; 40; 45
+      Min Intensity: 0
       Name: Livox PointCloud
       Position Transformer: XYZ
-      Queue Size: 10
       Selectable: true
       Size (Pixels): 2
-      Size (m): 0.01
+      Size (m): 0.009999999776482582
       Style: Points
       Topic:
         Depth: 5
@@ -51,7 +56,15 @@ Visualization Manager:
       Class: rviz_default_plugins/Grid
       Color: 120; 120; 120
       Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
       Name: Reference Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
       Plane: XY
       Plane Cell Count: 20
       Reference Frame: <Fixed Frame>
@@ -60,18 +73,18 @@ Visualization Manager:
       Displays:
         - Class: rviz_default_plugins/MarkerArray
           Enabled: true
-          Marker Topic:
-            Depth: 5
-            Durability Policy: Transient Local
-            History Policy: Keep Last
-            Reliability Policy: Reliable
-            Value: /landing/markers
           Name: Plane, Boundary, Status
           Namespaces:
             airspace_occupied: true
             landing_boundary: true
             landing_plane: true
             landing_status: true
+          Topic:
+            Depth: 5
+            Durability Policy: Volatile
+            History Policy: Keep Last
+            Reliability Policy: Reliable
+            Value: /landing/markers
           Value: true
       Enabled: true
       Name: Landing Evaluation
@@ -83,31 +96,50 @@ Visualization Manager:
   Name: root
   Tools:
     - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
     - Class: rviz_default_plugins/MoveCamera
     - Class: rviz_default_plugins/Select
     - Class: rviz_default_plugins/FocusCamera
     - Class: rviz_default_plugins/Measure
+      Line color: 128; 128; 0
   Transformation:
     Current:
       Class: rviz_default_plugins/TF
   Value: true
-Views:
-  Current:
-    Class: rviz_default_plugins/Orbit
-    Distance: 3.0
-    Focal Point:
-      X: 0
-      Y: 0
-      Z: -1
-    Name: Current View
-    Pitch: 0.65
-    Target Frame: base_link
-    Yaw: 0.8
-  Saved: ~
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 14.011277198791504
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Focal Point:
+        X: 1.2408623695373535
+        Y: 1.0754950046539307
+        Z: -1.120650053024292
+      Focal Shape Fixed Size: true
+      Focal Shape Size: 0.05000000074505806
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 0.9603978395462036
+      Target Frame: <Fixed Frame>
+      Value: Orbit (rviz_default_plugins)
+      Yaw: 0.9353981018066406
+    Saved: ~
 Window Geometry:
   Displays:
     collapsed: false
-  Height: 900
+  Height: 1011
   Hide Left Dock: false
   Hide Right Dock: false
-  Width: 1400
+  QMainWindow State: 000000ff00000000fd00000001000000000000015600000395fc0200000003fb000000100044006900730070006c006100790073010000003f000001cb000000cc00fffffffb0000001200530065006c0065006300740069006f006e0100000210000000e00000005d00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007301000002f6000000de0000005d00ffffff000005e20000039500000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Selection:
+    collapsed: false
+  Tool Properties:
+    collapsed: false
+  Width: 1854
+  X: 66
+  Y: 32

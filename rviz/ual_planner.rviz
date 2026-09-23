@@ -24,7 +24,7 @@ Visualization Manager:
       Value: true
     - Class: rviz_default_plugins/Image
       Enabled: true
-      Image Topic: /yoloe/annotated_image
+      Image Topic: /sam3/annotated_image
       Max Value: 1
       Median window: 5
       Min Value: 0

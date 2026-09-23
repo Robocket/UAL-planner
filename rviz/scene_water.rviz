@@ -1,0 +1,160 @@
+Panels:
+  - Class: rviz_common/Displays
+    Help Height: 70
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Scene Water Input Cloud1
+      Splitter Ratio: 0.5
+    Tree Height: 783
+  - Class: rviz_common/Selection
+    Name: Selection
+  - Class: rviz_common/Tool Properties
+    Expanded: ~
+    Name: Tool Properties
+    Splitter Ratio: 0.5
+  - Class: rviz_common/Views
+    Expanded:
+      - /Current View1
+    Name: Views
+    Splitter Ratio: 0.5
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Image
+      Enabled: false
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Projected Segmentation
+      Normalize Range: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: ""
+      Value: false
+    - Class: rviz_default_plugins/Image
+      Enabled: false
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Name: Segmentation Image
+      Normalize Range: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: ""
+      Value: false
+    - Alpha: 1
+      Autocompute Intensity Bounds: true
+      Autocompute Value Bounds:
+        Max Value: 10
+        Min Value: -10
+        Value: true
+      Axis: Z
+      Channel Name: intensity
+      Class: rviz_default_plugins/PointCloud2
+      Color: 80; 200; 255
+      Color Transformer: FlatColor
+      Decay Time: 0
+      Enabled: true
+      Invert Rainbow: false
+      Max Color: 255; 255; 255
+      Max Intensity: 4096
+      Min Color: 0; 0; 0
+      Min Intensity: 0
+      Name: Scene Water Input Cloud
+      Position Transformer: XYZ
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.009999999776482582
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /livox/lidar
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: true
+    - Alpha: 0.5
+      Cell Size: 1
+      Class: rviz_default_plugins/Grid
+      Color: 120; 120; 120
+      Enabled: true
+      Line Style:
+        Line Width: 0.029999999329447746
+        Value: Lines
+      Name: Map Grid
+      Normal Cell Count: 0
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Plane: XY
+      Plane Cell Count: 40
+      Reference Frame: <Fixed Frame>
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 35; 35; 35
+    Fixed Frame: avia_frame
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+      Line color: 128; 128; 0
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/FPS
+      Enable Stereo Rendering:
+        Stereo Eye Separation: 0.05999999865889549
+        Stereo Focal Distance: 1
+        Swap Stereo Eyes: false
+        Value: false
+      Invert Z Axis: false
+      Name: Current View
+      Near Clip Distance: 0.009999999776482582
+      Pitch: 1.3947968482971191
+      Position:
+        X: 1.7202991247177124
+        Y: 3.953756332397461
+        Z: 24.245437622070312
+      Target Frame: <Fixed Frame>
+      Value: FPS (rviz_default_plugins)
+      Yaw: 4.3019914627075195
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 1011
+  Hide Left Dock: false
+  Hide Right Dock: false
+  Projected Segmentation:
+    collapsed: false
+  QMainWindow State: 000000ff00000000fd00000001000000000000015600000395fc0200000006fb00000024005300650067006d0065006e0074006100740069006f006e00200049006d006100670065000000003f0000007d0000001700fffffffb0000002c00500072006f006a006500630074006500640020005300650067006d0065006e0074006100740069006f006e000000003f000000900000001700fffffffb000000100044006900730070006c006100790073010000003f00000395000000cc00fffffffb0000001200530065006c0065006300740069006f006e000000018d000000970000005d00fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007300000001d2000000b40000005d00fffffffb0000000a0056006900650077007300000002380000019c000000a900ffffff000005e20000039500000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  Segmentation Image:
+    collapsed: false
+  Selection:
+    collapsed: false
+  Tool Properties:
+    collapsed: false
+  Views:
+    collapsed: false
+  Width: 1854
+  X: 66
+  Y: 32

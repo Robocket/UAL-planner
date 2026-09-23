@@ -1,18 +1,20 @@
 # Algorithm parameters shared by every radar/camera profile.
-yolo_segmentation_tracker:
+sam3_segmentation:
   ros__parameters:
-    result_topic: /yoloe/segmentation
-    annotated_topic: /yoloe/annotated_image
-    model_path: yolo11n-seg.pt
+    result_topic: /sam3/segmentation
+    annotated_topic: /sam3/annotated_image
+    text_prompt: "large ship"
     confidence_threshold: 0.5
-    iou_threshold: 0.5
-    tracker_type: botsort.yaml
-    device: cpu
+    min_mask_area_ratio: 0.0
+    max_instances: 20
+    tracking_iou_threshold: 0.3
+    max_track_age_frames: 5
+    inference_resolution: 1008
+    device: auto
+    compile_model: false
     show_result: false
     publish_annotated: true
-    classes: []
-    tracking_persist: true
-    inference_verbose: false
+    overlay_alpha: 0.45
     qos_depth: 1
 
 pointcloud_projection:
@@ -21,7 +23,7 @@ pointcloud_projection:
     far_plane: 100.0
     point_size: 1
     color_mode: instance
-    segmentation_topic: /yoloe/segmentation
+    segmentation_topic: /sam3/segmentation
     projected_image_topic: /projected_image
     projected_cloud_topic: /projected_cloud
     projected_info_topic: /projected_instance_info

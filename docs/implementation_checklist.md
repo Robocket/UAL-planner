@@ -20,6 +20,10 @@
   sensor → base → world 转换。
 - [x] 提供 D1、Avia、HIL 三个 Jazzy launch；设备驱动不耦合到算法启动层。
 - [x] RViz launch 与统一显示配置移到仓库根目录，并由 `ual_planner_bringup` 安装和启动。
+- [x] 核对 Scene_Water bag 的实际话题与 frame，并提供以 `avia_frame` 为输入点云
+  Fixed Frame 的 `scene_water.yaml`、launch 和分割投影 RViz 配置。
+- [x] 实例分割后端替换为 Meta SAM 3，以 `large ship` 文本提示识别海上大型船只；
+  删除本地权重路径和 Ultralytics 依赖，由官方模型代码自动下载 Hugging Face 权重。
 - [x] 提供隔离的 Jazzy 构建脚本，避免 Humble/Jazzy 路径混入同一个构建缓存。
 - [x] 修复 Python 节点可执行权限和 Jazzy 重复 SIGINT 时的退出清理。
 - [x] Jazzy 全量构建成功，Landing C++/Python 测试全部通过，三套 launch 已完成解析与
