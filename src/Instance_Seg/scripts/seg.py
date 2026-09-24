@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Segment open-vocabulary concepts in ROS images with Meta SAM 3."""
 
+import time
+
 import cv2
 import numpy as np
 import rclpy
 from cv_bridge import CvBridge, CvBridgeError
+from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from PIL import Image as PilImage
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
@@ -12,11 +15,18 @@ from sensor_msgs.msg import Image
 
 try:
     import torch
-    from sam3.model.sam3_image_processor import Sam3Processor
-    from sam3.model_builder import build_sam3_image_model
+    from modelscope import snapshot_download
+    from torchao.quantization import (
+        Int8DynamicActivationInt4WeightConfig,
+        Int8DynamicActivationInt8WeightConfig,
+        Int8WeightOnlyConfig,
+        quantize_,
+    )
+    from transformers import Sam3Model, Sam3Processor
 except ImportError as exc:
     raise ImportError(
-        "缺少 SAM 3/PyTorch。请按 README 安装 GPU 版 PyTorch 后执行: "
+        "缺少 SAM 3/ModelScope/TorchAO 运行依赖。请按 README 安装 GPU 版 "
+        "PyTorch 后执行: "
         "python3 -m pip install -r src/Instance_Seg/requirements.txt"
     ) from exc
 
@@ -34,13 +44,26 @@ class Sam3Segmentation(Node):
         self.declare_parameter('annotated_topic', '/sam3/annotated_image')
         self.declare_parameter('text_prompt', 'large ship')
         self.declare_parameter('confidence_threshold', 0.5)
+        self.declare_parameter('mask_threshold', 0.5)
         self.declare_parameter('min_mask_area_ratio', 0.0)
         self.declare_parameter('max_instances', 20)
         self.declare_parameter('tracking_iou_threshold', 0.3)
         self.declare_parameter('max_track_age_frames', 5)
         self.declare_parameter('inference_resolution', 1008)
         self.declare_parameter('device', 'auto')
+        self.declare_parameter('model_id', 'facebook/sam3')
+        self.declare_parameter('model_revision', 'master')
+        self.declare_parameter('model_cache_dir', '')
+        self.declare_parameter('model_local_files_only', False)
+        self.declare_parameter('model_download_max_workers', 4)
+        self.declare_parameter('quantization', 'int8_dynamic')
+        self.declare_parameter('int4_group_size', 128)
+        self.declare_parameter('compute_dtype', 'float32')
         self.declare_parameter('compile_model', False)
+        self.declare_parameter('performance_topic', '/sam3/performance')
+        self.declare_parameter('performance_log_period_frames', 1)
+        self.declare_parameter('performance_warn_latency_ms', 1000.0)
+        self.declare_parameter('performance_ema_alpha', 0.2)
         self.declare_parameter('show_result', False)
         self.declare_parameter('publish_annotated', True)
         self.declare_parameter('overlay_alpha', 0.45)
@@ -53,6 +76,7 @@ class Sam3Segmentation(Node):
         self.confidence_threshold = float(
             self.get_parameter('confidence_threshold').value
         )
+        self.mask_threshold = float(self.get_parameter('mask_threshold').value)
         self.min_mask_area_ratio = float(
             self.get_parameter('min_mask_area_ratio').value
         )
@@ -67,7 +91,42 @@ class Sam3Segmentation(Node):
             self.get_parameter('inference_resolution').value
         )
         configured_device = str(self.get_parameter('device').value).lower()
+        self.model_id = str(self.get_parameter('model_id').value).strip()
+        self.model_revision = str(
+            self.get_parameter('model_revision').value
+        ).strip()
+        model_cache_dir = str(
+            self.get_parameter('model_cache_dir').value
+        ).strip()
+        self.model_cache_dir = model_cache_dir or None
+        self.model_local_files_only = bool(
+            self.get_parameter('model_local_files_only').value
+        )
+        self.model_download_max_workers = int(
+            self.get_parameter('model_download_max_workers').value
+        )
+        self.quantization = str(
+            self.get_parameter('quantization').value
+        ).strip().lower()
+        self.int4_group_size = int(
+            self.get_parameter('int4_group_size').value
+        )
+        self.compute_dtype = str(
+            self.get_parameter('compute_dtype').value
+        ).strip().lower()
         self.compile_model = bool(self.get_parameter('compile_model').value)
+        self.performance_topic = str(
+            self.get_parameter('performance_topic').value
+        ).strip()
+        self.performance_log_period_frames = int(
+            self.get_parameter('performance_log_period_frames').value
+        )
+        self.performance_warn_latency_ms = float(
+            self.get_parameter('performance_warn_latency_ms').value
+        )
+        self.performance_ema_alpha = float(
+            self.get_parameter('performance_ema_alpha').value
+        )
         self.show_result = bool(self.get_parameter('show_result').value)
         self.publish_annotated = bool(
             self.get_parameter('publish_annotated').value
@@ -80,30 +139,11 @@ class Sam3Segmentation(Node):
         self.bridge = CvBridge()
         self._tracks = {}
         self._next_track_id = 1
+        self._processed_frames = 0
+        self._latency_ema_ms = None
 
-        self.get_logger().info(
-            '正在加载 Meta SAM 3；首次运行将从 facebook/sam3 自动下载权重'
-        )
-        try:
-            model = build_sam3_image_model(
-                checkpoint_path=None,
-                load_from_HF=True,
-                device=self.device,
-                eval_mode=True,
-                enable_segmentation=True,
-                compile=self.compile_model,
-            )
-        except Exception as exc:
-            raise RuntimeError(
-                'SAM 3 加载失败。请先在 Hugging Face 接受 facebook/sam3 '
-                '许可并执行 `hf auth login`；节点不使用本地训练权重。'
-            ) from exc
-        self.processor = Sam3Processor(
-            model,
-            resolution=self.inference_resolution,
-            device=self.device,
-            confidence_threshold=self.confidence_threshold,
-        )
+        self.model, self.processor = self._load_model()
+        self.text_features, self.text_attention_mask = self._prepare_text_prompt()
 
         self.result_pub = self.create_publisher(
             SegmentationResult, result_topic, qos_depth
@@ -111,12 +151,16 @@ class Sam3Segmentation(Node):
         self.annotated_pub = self.create_publisher(
             Image, annotated_topic, qos_depth
         )
+        self.performance_pub = self.create_publisher(
+            DiagnosticArray, self.performance_topic, qos_depth
+        )
         self.image_sub = self.create_subscription(
             Image, image_topic, self.image_callback, qos_profile_sensor_data
         )
         self.get_logger().info(
             f'SAM 3 分割节点已启动: topic={image_topic}, '
-            f'prompt="{self.text_prompt}", device={self.device}'
+            f'prompt="{self.text_prompt}", device={self.device}, '
+            f'quantization={self.quantization}'
         )
 
     def _validate_parameters(self, configured_device, qos_depth):
@@ -124,6 +168,7 @@ class Sam3Segmentation(Node):
             raise ValueError('text_prompt 不能为空')
         for name, value in (
             ('confidence_threshold', self.confidence_threshold),
+            ('mask_threshold', self.mask_threshold),
             ('min_mask_area_ratio', self.min_mask_area_ratio),
             ('tracking_iou_threshold', self.tracking_iou_threshold),
             ('overlay_alpha', self.overlay_alpha),
@@ -136,10 +181,195 @@ class Sam3Segmentation(Node):
             raise ValueError('max_track_age_frames 不能为负')
         if self.inference_resolution <= 0:
             raise ValueError('inference_resolution 必须大于 0')
+        if not self.model_id:
+            raise ValueError('model_id 不能为空')
+        if not self.model_revision:
+            raise ValueError('model_revision 不能为空')
+        if self.model_download_max_workers <= 0:
+            raise ValueError('model_download_max_workers 必须大于 0')
+        if self.quantization not in {
+            'int4_dynamic', 'int8_dynamic', 'int8_weight_only', 'none',
+        }:
+            raise ValueError(
+                'quantization 必须是 int4_dynamic、int8_dynamic、'
+                'int8_weight_only 或 none'
+            )
+        if self.int4_group_size not in {16, 32, 64, 128, 256}:
+            raise ValueError(
+                'int4_group_size 必须是 16、32、64、128 或 256'
+            )
+        if self.compute_dtype not in {'float32', 'float16'}:
+            raise ValueError('compute_dtype 必须是 float32 或 float16')
+        if not self.performance_topic:
+            raise ValueError('performance_topic 不能为空')
+        if self.performance_log_period_frames <= 0:
+            raise ValueError('performance_log_period_frames 必须大于 0')
+        if self.performance_warn_latency_ms <= 0.0:
+            raise ValueError('performance_warn_latency_ms 必须大于 0')
+        if not 0.0 < self.performance_ema_alpha <= 1.0:
+            raise ValueError('performance_ema_alpha 必须在 (0, 1] 范围内')
         if qos_depth <= 0:
             raise ValueError('qos_depth 必须大于 0')
         if configured_device not in {'auto', 'cpu', 'cuda'}:
             raise ValueError('device 必须是 auto、cpu 或 cuda')
+
+    def _load_model(self):
+        mode = '仅使用本地缓存' if self.model_local_files_only else '自动下载/更新'
+        self.get_logger().info(
+            f'正在从魔塔加载 {self.model_id}@{self.model_revision} '
+            f'({mode})'
+        )
+        try:
+            model_dir = snapshot_download(
+                self.model_id,
+                revision=self.model_revision,
+                cache_dir=self.model_cache_dir,
+                local_files_only=self.model_local_files_only,
+                allow_patterns=[
+                    '*.json', '*.txt', '*.safetensors', 'LICENSE', 'README.md',
+                ],
+                ignore_patterns=['sam3.pt'],
+                max_workers=self.model_download_max_workers,
+            )
+            dtype = {
+                'float32': torch.float32,
+                'float16': torch.float16,
+            }[self.compute_dtype]
+            model = Sam3Model.from_pretrained(model_dir, dtype=dtype).eval()
+            if self.quantization == 'int4_dynamic':
+                quantize_(
+                    model,
+                    Int8DynamicActivationInt4WeightConfig(
+                        group_size=self.int4_group_size,
+                    ),
+                )
+            elif self.quantization == 'int8_dynamic':
+                quantize_(
+                    model,
+                    Int8DynamicActivationInt8WeightConfig(version=2),
+                )
+            elif self.quantization == 'int8_weight_only':
+                # Quantize on CPU before moving the model. On Turing GPUs,
+                # quantizing an FP16 model on-device produces NaN SAM outputs.
+                quantize_(model, Int8WeightOnlyConfig(version=2))
+            model = model.to(self.device)
+            if self.device == 'cuda':
+                torch.cuda.empty_cache()
+            if self.compile_model:
+                # Compile only the dominant vision encoder so helper methods
+                # such as get_text_features remain available.
+                model.vision_encoder = torch.compile(
+                    model.vision_encoder,
+                    mode='reduce-overhead',
+                    fullgraph=False,
+                )
+            processor = Sam3Processor.from_pretrained(model_dir)
+        except Exception as exc:
+            raise RuntimeError(
+                f'从魔塔加载 SAM 3 失败 ({self.model_id}@'
+                f'{self.model_revision})：{exc}'
+            ) from exc
+
+        processor_size = processor.image_processor.size
+        native_resolution = int(processor_size['height'])
+        if (
+            native_resolution != int(processor_size['width'])
+            or self.inference_resolution != native_resolution
+        ):
+            raise ValueError(
+                '当前 SAM 3 权重的二维旋转位置编码要求输入分辨率为 '
+                f'{native_resolution}，但 inference_resolution='
+                f'{self.inference_resolution}'
+            )
+        if self.device == 'cuda':
+            allocated_mib = torch.cuda.memory_allocated() / (1024 * 1024)
+            self.get_logger().info(
+                f'SAM 3 加载完成，CUDA 已分配约 {allocated_mib:.0f} MiB'
+            )
+        return model, processor
+
+    def _prepare_text_prompt(self):
+        text_inputs = self.processor(
+            text=self.text_prompt,
+            return_tensors='pt',
+        ).to(self.device)
+        with torch.inference_mode():
+            text_features = self.model.get_text_features(
+                input_ids=text_inputs['input_ids'],
+                attention_mask=text_inputs['attention_mask'],
+                return_dict=True,
+            )
+        return text_features, text_inputs['attention_mask']
+
+    @staticmethod
+    def _diagnostic_value(key, value):
+        item = KeyValue()
+        item.key = key
+        item.value = str(value)
+        return item
+
+    def _publish_performance(
+        self,
+        detection_count,
+        preprocess_ms,
+        inference_ms,
+        postprocess_ms,
+        publish_ms,
+        total_ms,
+    ):
+        alpha = self.performance_ema_alpha
+        if self._latency_ema_ms is None:
+            self._latency_ema_ms = total_ms
+        else:
+            self._latency_ema_ms = (
+                alpha * total_ms + (1.0 - alpha) * self._latency_ema_ms
+            )
+
+        allocated_mib = reserved_mib = peak_mib = 0.0
+        if self.device == 'cuda':
+            allocated_mib = torch.cuda.memory_allocated() / (1024 * 1024)
+            reserved_mib = torch.cuda.memory_reserved() / (1024 * 1024)
+            peak_mib = torch.cuda.max_memory_allocated() / (1024 * 1024)
+
+        status = DiagnosticStatus()
+        status.name = 'sam3_segmentation/performance'
+        status.hardware_id = (
+            torch.cuda.get_device_name(0) if self.device == 'cuda' else 'cpu'
+        )
+        status.level = (
+            DiagnosticStatus.WARN
+            if total_ms > self.performance_warn_latency_ms
+            else DiagnosticStatus.OK
+        )
+        status.message = (
+            'inference latency above configured limit'
+            if status.level == DiagnosticStatus.WARN
+            else 'ok'
+        )
+        status.values = [
+            self._diagnostic_value('frame_index', self._processed_frames),
+            self._diagnostic_value('detections', detection_count),
+            self._diagnostic_value('preprocess_ms', f'{preprocess_ms:.2f}'),
+            self._diagnostic_value('inference_ms', f'{inference_ms:.2f}'),
+            self._diagnostic_value('postprocess_ms', f'{postprocess_ms:.2f}'),
+            self._diagnostic_value('publish_ms', f'{publish_ms:.2f}'),
+            self._diagnostic_value('total_ms', f'{total_ms:.2f}'),
+            self._diagnostic_value(
+                'effective_fps', f'{1000.0 / self._latency_ema_ms:.3f}'
+            ),
+            self._diagnostic_value(
+                'cuda_allocated_mib', f'{allocated_mib:.1f}'
+            ),
+            self._diagnostic_value('cuda_reserved_mib', f'{reserved_mib:.1f}'),
+            self._diagnostic_value('cuda_peak_mib', f'{peak_mib:.1f}'),
+            self._diagnostic_value('quantization', self.quantization),
+            self._diagnostic_value('int4_group_size', self.int4_group_size),
+            self._diagnostic_value('compute_dtype', self.compute_dtype),
+        ]
+        message = DiagnosticArray()
+        message.header.stamp = self.get_clock().now().to_msg()
+        message.status = [status]
+        self.performance_pub.publish(message)
 
     @staticmethod
     def _resolve_device(configured_device):
@@ -308,14 +538,68 @@ class Sam3Segmentation(Node):
 
     def image_callback(self, msg):
         try:
+            started_at = time.perf_counter()
             image = self.bridge.imgmsg_to_cv2(msg, desired_encoding='bgr8')
             rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            state = self.processor.set_image(PilImage.fromarray(rgb))
-            state = self.processor.set_text_prompt(
-                prompt=self.text_prompt, state=state
+            inputs = self.processor(
+                images=PilImage.fromarray(rgb),
+                return_tensors='pt',
             )
+            inputs = inputs.to(self.device)
+            preprocess_done_at = time.perf_counter()
+            if self.device == 'cuda':
+                torch.cuda.reset_peak_memory_stats()
+                torch.cuda.synchronize()
+            inference_started_at = time.perf_counter()
+            with torch.inference_mode():
+                outputs = self.model(
+                    pixel_values=inputs['pixel_values'],
+                    text_embeds=self.text_features,
+                    attention_mask=self.text_attention_mask,
+                )
+            if self.device == 'cuda':
+                torch.cuda.synchronize()
+            inference_done_at = time.perf_counter()
+            for name in ('pred_logits', 'presence_logits', 'pred_masks'):
+                if not torch.isfinite(getattr(outputs, name)).all():
+                    raise RuntimeError(
+                        f'SAM 3 输出 {name} 含 NaN/Inf；请使用默认的 '
+                        'compute_dtype=float32'
+                    )
+            state = self.processor.post_process_instance_segmentation(
+                outputs,
+                threshold=self.confidence_threshold,
+                mask_threshold=self.mask_threshold,
+                target_sizes=inputs['original_sizes'].tolist(),
+            )[0]
             detections = self._extract_detections(state, image.shape)
+            postprocess_done_at = time.perf_counter()
             self._publish_result(msg, image, detections)
+            publish_done_at = time.perf_counter()
+            self._processed_frames += 1
+            preprocess_ms = (preprocess_done_at - started_at) * 1000.0
+            inference_ms = (inference_done_at - inference_started_at) * 1000.0
+            postprocess_ms = (
+                postprocess_done_at - inference_done_at
+            ) * 1000.0
+            publish_ms = (publish_done_at - postprocess_done_at) * 1000.0
+            total_ms = (publish_done_at - started_at) * 1000.0
+            self._publish_performance(
+                len(detections),
+                preprocess_ms,
+                inference_ms,
+                postprocess_ms,
+                publish_ms,
+                total_ms,
+            )
+            if self._processed_frames % self.performance_log_period_frames == 0:
+                self.get_logger().info(
+                    f'SAM 3 第 {self._processed_frames} 帧: '
+                    f'{len(detections)} 个实例, total={total_ms:.0f} ms '
+                    f'(pre={preprocess_ms:.0f}, infer={inference_ms:.0f}, '
+                    f'post={postprocess_ms:.0f}, pub={publish_ms:.0f}), '
+                    f'EMA FPS={1000.0 / self._latency_ema_ms:.3f}'
+                )
         except (CvBridgeError, Exception) as exc:
             self.get_logger().error(f'SAM 3 图像处理或推理失败: {exc}')
 

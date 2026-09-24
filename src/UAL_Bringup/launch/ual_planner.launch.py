@@ -36,6 +36,14 @@ def generate_launch_description():
             description='RViz display configuration for the selected profile',
         ),
         DeclareLaunchArgument('start_segmentation', default_value='true'),
+        DeclareLaunchArgument(
+            'segmentation_executable',
+            default_value='seg_q4_node',
+            description=(
+                'SAM 3 backend: seg_q4_node for GGML Q4_0; '
+                'seg.py for the TorchAO fallback'
+            ),
+        ),
         DeclareLaunchArgument('start_projection', default_value='true'),
         DeclareLaunchArgument('start_instance_graph', default_value='true'),
         DeclareLaunchArgument('start_landing_evaluator', default_value='true'),
@@ -45,7 +53,7 @@ def generate_launch_description():
         ),
         Node(
             package='ins_seg',
-            executable='seg.py',
+            executable=LaunchConfiguration('segmentation_executable'),
             name='sam3_segmentation',
             output='screen',
             parameters=parameter_files,

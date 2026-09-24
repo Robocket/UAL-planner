@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Project a registered point cloud into a segmented camera image."""
 
+from collections import deque
+
 import cv2
-import message_filters
 import numpy as np
 import rclpy
 from cv_bridge import CvBridge, CvBridgeError
@@ -54,7 +55,9 @@ class PointCloudProjection(Node):
             'projected_image_topic': '/projected_image',
             'projected_cloud_topic': '/projected_cloud',
             'projected_info_topic': '/projected_instance_info',
-            'sync_queue_size': 10,
+            'pointcloud_cache_size': 80,
+            'odometry_cache_size': 512,
+            'timestamp_reset_threshold_sec': 30.0,
             'sync_slop': 0.1,
             'coordinate_ema_alpha': 0.6,
             # Input coordinates: world, base, or sensor.
@@ -74,6 +77,14 @@ class PointCloudProjection(Node):
                 0.0, 0.0, 1.0, 0.0,
                 0.0, 0.0, 0.0, 1.0,
             ],
+            # Direct homogeneous transform from LiDAR to camera coordinates.
+            # Used when pointcloud_frame is sensor.
+            'lidar_to_camera': [
+                1.0, 0.0, 0.0, 0.0,
+                0.0, 1.0, 0.0, 0.0,
+                0.0, 0.0, 1.0, 0.0,
+                0.0, 0.0, 0.0, 1.0,
+            ],
         }
         for name, value in defaults.items():
             self.declare_parameter(name, value)
@@ -85,6 +96,17 @@ class PointCloudProjection(Node):
         self.point_size = self.get_parameter('point_size').value
         self.color_mode = self.get_parameter('color_mode').value
         self.coordinate_ema_alpha = self.get_parameter('coordinate_ema_alpha').value
+        self.sync_slop = float(self.get_parameter('sync_slop').value)
+        pointcloud_cache_size = int(
+            self.get_parameter('pointcloud_cache_size').value
+        )
+        odometry_cache_size = int(
+            self.get_parameter('odometry_cache_size').value
+        )
+        self.timestamp_reset_threshold_ns = int(
+            float(self.get_parameter('timestamp_reset_threshold_sec').value)
+            * 1e9
+        )
         self.fx = self.get_parameter('fx').value
         self.fy = self.get_parameter('fy').value
         if self.fx <= 0.0:
@@ -108,6 +130,12 @@ class PointCloudProjection(Node):
         if lidar_transform.size != 16:
             raise ValueError('lidar_to_base 必须包含 16 个数')
         self.lidar_to_base = lidar_transform.reshape((4, 4))
+        camera_transform = np.asarray(
+            self.get_parameter('lidar_to_camera').value, dtype=np.float64
+        )
+        if camera_transform.size != 16:
+            raise ValueError('lidar_to_camera 必须包含 16 个数')
+        self.lidar_to_camera = camera_transform.reshape((4, 4))
         self.pointcloud_frame = str(
             self.get_parameter('pointcloud_frame').value
         ).lower()
@@ -122,28 +150,35 @@ class PointCloudProjection(Node):
             raise ValueError('point_size 必须大于 0')
         if not 0.0 < self.coordinate_ema_alpha <= 1.0:
             raise ValueError('coordinate_ema_alpha 必须在 (0, 1] 范围内')
+        if self.sync_slop < 0.0:
+            raise ValueError('sync_slop 不能为负')
+        if pointcloud_cache_size <= 0 or odometry_cache_size <= 0:
+            raise ValueError('点云和里程计缓存大小必须大于 0')
+        if self.timestamp_reset_threshold_ns <= 0:
+            raise ValueError('timestamp_reset_threshold_sec 必须大于 0')
         self.bridge = CvBridge()
         self.instance_coordinates = {}
+        self.pointcloud_cache = deque(maxlen=pointcloud_cache_size)
+        self.odometry_cache = deque(maxlen=odometry_cache_size)
 
-        self.pc_sub = message_filters.Subscriber(
-            self, PointCloud2, self.get_parameter('pointcloud_topic').value,
-            qos_profile=qos_profile_sensor_data,
+        self.pc_sub = self.create_subscription(
+            PointCloud2,
+            self.get_parameter('pointcloud_topic').value,
+            self._pointcloud_callback,
+            qos_profile_sensor_data,
         )
-        self.odom_sub = message_filters.Subscriber(
-            self, Odometry, self.get_parameter('odometry_topic').value,
-            qos_profile=qos_profile_sensor_data,
+        self.odom_sub = self.create_subscription(
+            Odometry,
+            self.get_parameter('odometry_topic').value,
+            self._odometry_callback,
+            qos_profile_sensor_data,
         )
-        self.seg_sub = message_filters.Subscriber(
-            self, SegmentationResult,
+        self.seg_sub = self.create_subscription(
+            SegmentationResult,
             self.get_parameter('segmentation_topic').value,
-            qos_profile=qos_profile_sensor_data,
+            self._segmentation_callback,
+            qos_profile_sensor_data,
         )
-        self.synchronizer = message_filters.ApproximateTimeSynchronizer(
-            [self.pc_sub, self.odom_sub, self.seg_sub],
-            queue_size=self.get_parameter('sync_queue_size').value,
-            slop=self.get_parameter('sync_slop').value,
-        )
-        self.synchronizer.registerCallback(self.callback)
 
         self.image_pub = self.create_publisher(
             Image, self.get_parameter('projected_image_topic').value, 1
@@ -159,6 +194,59 @@ class PointCloudProjection(Node):
         self.get_logger().info(
             f'投影节点已启动，图像尺寸={self.image_width}x{self.image_height}'
         )
+
+    @staticmethod
+    def _stamp_ns(message):
+        stamp = message.header.stamp
+        return int(stamp.sec) * 1_000_000_000 + int(stamp.nanosec)
+
+    def _append_cache(self, cache, message, cache_name):
+        stamp_ns = self._stamp_ns(message)
+        if (
+            cache
+            and stamp_ns
+            < self._stamp_ns(cache[-1]) - self.timestamp_reset_threshold_ns
+        ):
+            cache.clear()
+            self.get_logger().warning(
+                f'{cache_name}时间戳回跳，已清空缓存（rosbag loop）'
+            )
+        cache.append(message)
+
+    def _pointcloud_callback(self, message):
+        self._append_cache(self.pointcloud_cache, message, '点云')
+
+    def _odometry_callback(self, message):
+        self._append_cache(self.odometry_cache, message, '里程计')
+
+    def _nearest_cached(self, cache, target_stamp_ns):
+        return min(
+            cache,
+            key=lambda message: abs(self._stamp_ns(message) - target_stamp_ns),
+        )
+
+    def _segmentation_callback(self, seg_msg):
+        if not self.pointcloud_cache or not self.odometry_cache:
+            self.get_logger().warning(
+                '分割结果到达时点云/里程计缓存尚未就绪',
+                throttle_duration_sec=5.0,
+            )
+            return
+        target_stamp_ns = self._stamp_ns(seg_msg)
+        pc_msg = self._nearest_cached(self.pointcloud_cache, target_stamp_ns)
+        odom_msg = self._nearest_cached(self.odometry_cache, target_stamp_ns)
+        pc_delta = abs(self._stamp_ns(pc_msg) - target_stamp_ns) / 1e9
+        odom_delta = abs(self._stamp_ns(odom_msg) - target_stamp_ns) / 1e9
+        if pc_delta > self.sync_slop or odom_delta > self.sync_slop:
+            self.get_logger().warning(
+                '找不到与分割结果同步的传感器数据: '
+                f'pointcloud_delta={pc_delta:.3f}s, '
+                f'odometry_delta={odom_delta:.3f}s, '
+                f'slop={self.sync_slop:.3f}s',
+                throttle_duration_sec=5.0,
+            )
+            return
+        self.callback(pc_msg, odom_msg, seg_msg)
 
     def _read_points(self, message):
         cloud = point_cloud2.read_points(
@@ -231,17 +319,25 @@ class PointCloudProjection(Node):
             orientation.x, orientation.y, orientation.z, orientation.w
         )
         base_to_world[:3, 3] = [position.x, position.y, position.z]
-        homogeneous = np.column_stack((points, np.ones(len(points))))
+        input_points_h = np.column_stack((points, np.ones(len(points))))
+        sensor_to_world = base_to_world @ self.lidar_to_base
+
+        # Normalize every supported input convention to world coordinates
+        # first. All spatial filtering, published clouds, instance centroids,
+        # and downstream graph calculations use this canonical representation.
         if self.pointcloud_frame == 'world':
-            world_points = points
-            base_points_h = (np.linalg.inv(base_to_world) @ homogeneous.T).T
+            world_points_h = input_points_h
+            world_to_camera = self.base_to_camera @ np.linalg.inv(base_to_world)
         elif self.pointcloud_frame == 'base':
-            base_points_h = homogeneous
-            world_points = (base_to_world @ base_points_h.T).T[:, :3]
+            world_points_h = (base_to_world @ input_points_h.T).T
+            world_to_camera = self.base_to_camera @ np.linalg.inv(base_to_world)
         else:
-            base_points_h = (self.lidar_to_base @ homogeneous.T).T
-            world_points = (base_to_world @ base_points_h.T).T[:, :3]
-        camera_points = (self.base_to_camera @ base_points_h.T).T[:, :3]
+            world_points_h = (sensor_to_world @ input_points_h.T).T
+            # Scene_Water currently uses a directly calibrated LiDAR-to-camera
+            # transform. Express the same path from the canonical world cloud.
+            world_to_camera = self.lidar_to_camera @ np.linalg.inv(sensor_to_world)
+        world_points = world_points_h[:, :3]
+        camera_points = (world_to_camera @ world_points_h.T).T[:, :3]
 
         visible = (
             (camera_points[:, 2] > self.near_plane)
@@ -269,11 +365,34 @@ class PointCloudProjection(Node):
             self._publish_black_image(pc_msg.header)
             return
 
+        odom_world_frame = odom_msg.header.frame_id
+        if self.output_frame and odom_world_frame:
+            if self.output_frame != odom_world_frame:
+                raise ValueError(
+                    'output_frame 与里程计世界坐标系不一致: '
+                    f'{self.output_frame} != {odom_world_frame}'
+                )
+        world_frame = self.output_frame or odom_world_frame
+        if not world_frame and self.pointcloud_frame == 'world':
+            world_frame = pc_msg.header.frame_id
+        if not world_frame:
+            raise ValueError(
+                '无法确定世界坐标系：请配置 output_frame 或提供带 '
+                'header.frame_id 的 Odometry'
+            )
+        if (
+            self.pointcloud_frame == 'world'
+            and pc_msg.header.frame_id
+            and pc_msg.header.frame_id != world_frame
+        ):
+            raise ValueError(
+                '声明为 world 的点云 frame_id 与世界坐标系不一致: '
+                f'{pc_msg.header.frame_id} != {world_frame}'
+            )
+
         output_header = Header()
         output_header.stamp = pc_msg.header.stamp
-        output_header.frame_id = (
-            self.output_frame or odom_msg.header.frame_id or pc_msg.header.frame_id
-        )
+        output_header.frame_id = world_frame
         projected_cloud = point_cloud2.create_cloud_xyz32(
             output_header, world_points.astype(np.float32)
         )
@@ -282,7 +401,9 @@ class PointCloudProjection(Node):
         instance_ids = id_map[v, u]
         frame_ids = [int(value) for value in np.unique(instance_ids) if value != 0]
         info_message = ProjectedInstanceInfo()
-        info_message.header = pc_msg.header
+        # Instance coordinates are means of world_points, so their header must
+        # carry the same world frame as /projected_cloud.
+        info_message.header = output_header
         for instance_id in frame_ids:
             instance_points = world_points[instance_ids == instance_id]
             observation = np.mean(instance_points, axis=0)

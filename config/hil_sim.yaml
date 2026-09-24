@@ -22,6 +22,10 @@ pointcloud_projection:
                     0.0, 1.0, 0.0, 0.0,
                     -1.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, 1.0]
+    lidar_to_camera: [0.0, -1.0, 0.0, 0.0,
+                      1.0, 0.0, 0.0, 0.0,
+                      0.0, 0.0, 1.0, 0.0,
+                      0.0, 0.0, 0.0, 1.0]
     base_to_camera: [0.0, -1.0, 0.0, 0.0,
                      0.0, 0.0, -1.0, 0.0,
                      1.0, 0.0, 0.0, 0.0,
@@ -30,6 +34,7 @@ pointcloud_projection:
 instance_graph:
   ros__parameters:
     use_sim_time: true
+    world_frame: 981-A/odom
 
 landing_evaluator:
   ros__parameters:

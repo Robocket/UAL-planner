@@ -1,7 +1,28 @@
-# Interface profile for the converted Scene_Water rosbag.
-# Original bag topics /left_camera/image/compressed and /livox/lidar use
-# CompressedImage and livox_avia_driver/CustomMsg. UAL consumes the converted
-# sensor_msgs/Image and sensor_msgs/PointCloud2 topics listed below.
+# Interface profile for the original Scene_Water rosbag.
+# Adapter inputs match metadata.yaml exactly. Algorithms consume the derived
+# sensor_msgs/Image and sensor_msgs/PointCloud2 topics.
+scene_water_image_adapter:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: /left_camera/image/compressed
+    output_topic: /left_camera/image
+    output_encoding: bgr8
+    # The bag's CompressedImage header.frame_id is empty, so keep it unchanged.
+    frame_id: ""
+    qos_depth: 1
+
+livox_custom_to_pointcloud2:
+  ros__parameters:
+    use_sim_time: false
+    input_topic: /livox/lidar
+    output_topic: /livox/lidar/points
+    # Keep the bag's verified "avia_frame" header.
+    frame_id: ""
+    qos_depth: 1
+    # Reliable is compatible with both RViz Reliable and sensor-data
+    # Best Effort subscribers.
+    output_reliability: reliable
+
 sam3_segmentation:
   ros__parameters:
     use_sim_time: false
@@ -10,27 +31,39 @@ sam3_segmentation:
 pointcloud_projection:
   ros__parameters:
     use_sim_time: false
-    # Verified from /left_camera/image in the converted bag.
+    # Verified by decoding /left_camera/image/compressed from the original bag.
     image_width: 1280
     image_height: 1024
     fov_deg: 87.0
-    # Negative values select the FOV fallback until camera calibration is known.
-    fx: -1.0
-    fy: -1.0
+    # Temporary Hikvision intrinsics retained from the previous configuration.
+    fx: 385.45
+    fy: 385.45
     cx: -1.0
     cy: -1.0
-    pointcloud_topic: /livox/avia/points
+    pointcloud_topic: /livox/lidar/points
     pointcloud_frame: sensor
     odometry_topic: /fsdk/aircraft_state
+    # Cache approximately 8 s of 10 Hz point clouds and 10 s of 50 Hz
+    # Odometry. Matching is triggered by the delayed segmentation result.
+    pointcloud_cache_size: 80
+    odometry_cache_size: 512
+    sync_slop: 0.2
     # /fsdk/aircraft_state.header.frame_id is "map".
     output_frame: map
-    # /livox/avia/points.header.frame_id is "avia_frame".
+    # The adapter preserves /livox/lidar.header.frame_id = "avia_frame".
     lidar_to_base: [0.0, 0.0, 1.0, 0.0,
                     0.0, 1.0, 0.0, 0.0,
                     -1.0, 0.0, 0.0, 0.0,
                     0.0, 0.0, 0.0, 1.0]
-    # Existing placeholder; replace with the measured aircraft-to-camera
-    # calibration before using projected geometry quantitatively.
+    # Hikvision camera and Avia lenses point in the same direction. The
+    # temporary LiDAR -> camera extrinsic uses identity rotation and zero
+    # translation as requested.
+    lidar_to_camera: [1.0, 0.0, 0.0, 0.0,
+                      0.0, 1.0, 0.0, 0.0,
+                      0.0, 0.0, 1.0, 0.0,
+                      0.0, 0.0, 0.0, 1.0]
+    # Retained for world/base point-cloud modes; sensor mode uses the direct
+    # lidar_to_camera transform above.
     base_to_camera: [0.0, -1.0, 0.0, 0.0,
                      0.0, 0.0, -1.0, 0.0,
                      1.0, 0.0, 0.0, 0.0,
@@ -39,11 +72,12 @@ pointcloud_projection:
 instance_graph:
   ros__parameters:
     use_sim_time: false
+    world_frame: map
 
 landing_evaluator:
   ros__parameters:
     use_sim_time: false
-    input_topic: /livox/avia/points
+    input_topic: /livox/lidar/points
     output_frame: base_link
     extrinsics.translation: [0.0, 0.0, 0.0]
     extrinsics.rotation_rpy: [0.0, 1.5707963267948966, 0.0]

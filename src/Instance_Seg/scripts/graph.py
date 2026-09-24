@@ -20,6 +20,7 @@ class InstanceGraph(Node):
         self.declare_parameter('ema_alpha', 0.6)
         self.declare_parameter('subscriber_qos_depth', 10)
         self.declare_parameter('log_period_sec', 1.0)
+        self.declare_parameter('world_frame', '')
 
         self.instance_dict: Dict[int, Dict] = {}
         self.max_instances = self.get_parameter('max_instances').value
@@ -29,6 +30,10 @@ class InstanceGraph(Node):
             self.get_parameter('subscriber_qos_depth').value
         )
         log_period_sec = float(self.get_parameter('log_period_sec').value)
+        self.expected_world_frame = str(
+            self.get_parameter('world_frame').value
+        ).strip()
+        self.active_world_frame = None
         if self.max_instances <= 0 or self.distance_threshold < 0.0:
             raise ValueError('max_instances 必须大于 0，distance_threshold 不能为负')
         if not 0.0 < self.ema_alpha <= 1.0:
@@ -83,6 +88,32 @@ class InstanceGraph(Node):
 
     def instance_callback(self, msg):
         try:
+            incoming_frame = msg.header.frame_id.strip()
+            if not incoming_frame:
+                self.get_logger().error(
+                    '忽略没有 frame_id 的实例坐标；实例图只接受世界坐标'
+                )
+                return
+            if (
+                self.expected_world_frame
+                and incoming_frame != self.expected_world_frame
+            ):
+                self.get_logger().error(
+                    '忽略非预期世界坐标系的实例消息: '
+                    f'{incoming_frame} != {self.expected_world_frame}'
+                )
+                return
+            if self.active_world_frame is None:
+                self.active_world_frame = incoming_frame
+                self.get_logger().info(
+                    f'实例图统一使用世界坐标系: {incoming_frame}'
+                )
+            elif incoming_frame != self.active_world_frame:
+                self.get_logger().error(
+                    '忽略坐标系发生变化的实例消息: '
+                    f'{incoming_frame} != {self.active_world_frame}'
+                )
+                return
             for instance in msg.instances:
                 instance_data = {
                     'id': int(instance.id),

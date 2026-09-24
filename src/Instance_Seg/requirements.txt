@@ -1,3 +1,6 @@
-torch>=2.7
-torchvision>=0.22
-sam3 @ git+https://github.com/facebookresearch/sam3.git
+torch>=2.8,<2.11
+torchvision>=0.23,<0.26
+modelscope>=1.30
+transformers>=5.0,<6
+accelerate>=1.0
+torchao>=0.16,<0.17

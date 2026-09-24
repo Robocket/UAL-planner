@@ -5,13 +5,36 @@ sam3_segmentation:
     annotated_topic: /sam3/annotated_image
     text_prompt: "large ship"
     confidence_threshold: 0.5
+    mask_threshold: 0.5
     min_mask_area_ratio: 0.0
     max_instances: 20
     tracking_iou_threshold: 0.3
     max_track_age_frames: 5
     inference_resolution: 1008
     device: auto
+    model_id: facebook/sam3
+    model_revision: master
+    model_cache_dir: ""
+    model_local_files_only: false
+    model_download_max_workers: 4
+    # Used only by the optional TorchAO/Python backend (seg.py).
+    quantization: int8_dynamic
+    int4_group_size: 128
+    compute_dtype: float32
     compile_model: false
+    # Default backend is sam3.cpp with the full text-capable GGML Q4_0 model.
+    # Empty path selects ~/.cache/ual_planner/models/sam3-q4_0.ggml.
+    q4_model_url: "https://huggingface.co/PABannier/sam3.cpp/resolve/main/sam3-q4_0.ggml"
+    q4_model_path: ""
+    q4_model_size_bytes: 706606590
+    q4_auto_download: true
+    q4_num_threads: 8
+    q4_use_gpu: false
+    q4_nms_threshold: 0.1
+    performance_topic: /sam3/performance
+    performance_log_period_frames: 1
+    performance_warn_latency_ms: 1000.0
+    performance_ema_alpha: 0.2
     show_result: false
     publish_annotated: true
     overlay_alpha: 0.45
@@ -27,13 +50,17 @@ pointcloud_projection:
     projected_image_topic: /projected_image
     projected_cloud_topic: /projected_cloud
     projected_info_topic: /projected_instance_info
-    sync_queue_size: 10
+    pointcloud_cache_size: 80
+    odometry_cache_size: 512
+    timestamp_reset_threshold_sec: 30.0
     sync_slop: 0.1
     coordinate_ema_alpha: 0.6
 
 instance_graph:
   ros__parameters:
     info_topic: /projected_instance_info
+    # Empty means lock to the first valid world frame received at runtime.
+    world_frame: ""
     max_instances: 1000
     distance_threshold: 0.5
     ema_alpha: 0.6
