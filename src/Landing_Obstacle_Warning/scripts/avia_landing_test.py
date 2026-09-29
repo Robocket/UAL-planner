@@ -7,11 +7,10 @@ import sys
 import time
 from collections import Counter
 
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import QoSProfile, ReliabilityPolicy
-from rclpy.qos import qos_profile_sensor_data
+import rospy
 from sensor_msgs.msg import PointCloud2
+from ual_ros1 import Node, QoSProfile, ReliabilityPolicy
+from ual_ros1 import qos_profile_sensor_data
 
 from landing_evaluator.msg import LandingStatus
 
@@ -150,16 +149,17 @@ class AviaLandingTest(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rospy.init_node('avia_landing_test')
     node = AviaLandingTest()
     try:
-        while rclpy.ok() and not node.done:
-            rclpy.spin_once(node, timeout_sec=0.2)
+        while not rospy.is_shutdown() and not node.done:
+            rospy.sleep(0.2)
     except KeyboardInterrupt:
         node.finish()
     passed = node.passed
     node.destroy_node()
-    rclpy.shutdown()
+    if not rospy.is_shutdown():
+        rospy.signal_shutdown('Avia acceptance test complete')
     return 0 if passed else 1
 
 

@@ -1,0 +1,15 @@
+<launch>
+  <arg name="start_image_adapter" default="true" />
+  <arg name="start_livox_adapter" default="true" />
+  <arg name="start_rviz" default="false" />
+  <rosparam command="load" file="$(find ual_planner_bringup)/config/scene_water.yaml" />
+  <node if="$(arg start_image_adapter)" pkg="ins_seg"
+        type="compressed_image_adapter.py" name="scene_water_image_adapter" output="screen" />
+  <node if="$(arg start_livox_adapter)" pkg="livox_avia_driver"
+        type="custom_to_pointcloud2_node" name="livox_custom_to_pointcloud2" output="screen" />
+  <include file="$(find ual_planner_bringup)/launch/ual_planner.launch">
+    <arg name="sensor_config" value="$(find ual_planner_bringup)/config/scene_water.yaml" />
+    <arg name="rviz_config" value="$(find ual_planner_bringup)/rviz/scene_water.rviz" />
+    <arg name="start_rviz" value="$(arg start_rviz)" />
+  </include>
+</launch>

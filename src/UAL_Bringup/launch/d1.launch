@@ -1,0 +1,10 @@
+<launch>
+  <arg name="segmentation_executable" default="seg_q4_node" />
+  <arg name="start_rviz" default="false" />
+  <include file="$(find ual_planner_bringup)/launch/ual_planner.launch">
+    <arg name="sensor_config" value="$(find ual_planner_bringup)/config/d1.yaml" />
+    <arg name="use_sim_time" value="false" />
+    <arg name="segmentation_executable" value="$(arg segmentation_executable)" />
+    <arg name="start_rviz" value="$(arg start_rviz)" />
+  </include>
+</launch>

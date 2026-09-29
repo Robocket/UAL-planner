@@ -3,11 +3,10 @@
 
 import cv2
 import numpy as np
-import rclpy
+import rospy
 from cv_bridge import CvBridge
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import CompressedImage, Image
+from ual_ros1 import Node, qos_profile_sensor_data
 
 
 class CompressedImageAdapter(Node):
@@ -89,16 +88,16 @@ class CompressedImageAdapter(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rospy.init_node('compressed_image_adapter')
     node = CompressedImageAdapter()
     try:
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
     finally:
         node.destroy_node()
-        if rclpy.ok():
-            rclpy.shutdown()
+        if not rospy.is_shutdown():
+            rospy.signal_shutdown('compressed image adapter stopped')
 
 
 if __name__ == '__main__':

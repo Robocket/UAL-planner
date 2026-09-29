@@ -1,0 +1,90 @@
+# Interface profile for the original Scene_Water rosbag.
+# Adapter inputs match metadata.yaml exactly. Algorithms consume the derived
+# sensor_msgs/Image and sensor_msgs/PointCloud2 topics.
+scene_water_image_adapter:
+  use_sim_time: false
+  input_topic: /left_camera/image/compressed
+  output_topic: /left_camera/image
+  output_encoding: bgr8
+  # The bag's CompressedImage header.frame_id is empty, so keep it unchanged.
+  frame_id: ""
+  qos_depth: 1
+
+livox_custom_to_pointcloud2:
+  use_sim_time: false
+  input_topic: /livox/lidar
+  output_topic: /livox/lidar/points
+  # Keep the bag's verified "avia_frame" header.
+  frame_id: ""
+  qos_depth: 1
+  # Reliable is compatible with both RViz Reliable and sensor-data
+  # Best Effort subscribers.
+  output_reliability: reliable
+
+sam3_segmentation:
+  use_sim_time: false
+  image_topic: /left_camera/image
+
+pointcloud_projection:
+  use_sim_time: false
+  # Verified by decoding /left_camera/image/compressed from the original bag.
+  image_width: 1280
+  image_height: 1024
+  fov_deg: 87.0
+  # Temporary Hikvision intrinsics retained from the previous configuration.
+  fx: 385.45
+  fy: 385.45
+  cx: -1.0
+  cy: -1.0
+  pointcloud_topic: /livox/lidar/points
+  pointcloud_frame: sensor
+  odometry_topic: /fsdk/aircraft_state
+  # Cache approximately 8 s of 10 Hz point clouds and 10 s of 50 Hz
+  # Odometry. Matching is triggered by the delayed segmentation result.
+  pointcloud_cache_size: 80
+  odometry_cache_size: 512
+  sync_slop: 0.2
+  # /fsdk/aircraft_state.header.frame_id is "map".
+  output_frame: map
+  # The adapter preserves /livox/lidar.header.frame_id = "avia_frame".
+  lidar_to_base: [0.0, 0.0, 1.0, 0.0,
+                  0.0, 1.0, 0.0, 0.0,
+                  -1.0, 0.0, 0.0, 0.0,
+                  0.0, 0.0, 0.0, 1.0]
+  # Hikvision camera and Avia lenses point in the same direction. The
+  # temporary LiDAR -> camera extrinsic uses identity rotation and zero
+  # translation as requested.
+  lidar_to_camera: [1.0, 0.0, 0.0, 0.0,
+                    0.0, 1.0, 0.0, 0.0,
+                    0.0, 0.0, 1.0, 0.0,
+                    0.0, 0.0, 0.0, 1.0]
+  # Retained for world/base point-cloud modes; sensor mode uses the direct
+  # lidar_to_camera transform above.
+  base_to_camera: [0.0, -1.0, 0.0, 0.0,
+                   0.0, 0.0, -1.0, 0.0,
+                   1.0, 0.0, 0.0, 0.0,
+                   0.0, 0.0, 0.0, 1.0]
+
+instance_graph:
+  use_sim_time: false
+  world_frame: map
+
+landing_evaluator:
+  use_sim_time: false
+  input_topic: /livox/lidar/points
+  output_frame: base_link
+  extrinsics/translation: [0.0, 0.0, 0.0]
+  extrinsics/rotation_rpy: [0.0, 1.5707963267948966, 0.0]
+  imu/enabled: true
+  imu/required: true
+  imu/topic: /livox/imu
+  imu/extrinsics.rotation_rpy: [0.0, 1.5707963267948966, 0.0]
+  landing_radius: 1.25
+  grid_resolution: 0.10
+  landable_log_delay_sec: 2.0
+
+landing_rviz_visualizer:
+  use_sim_time: false
+
+ual_planner_rviz:
+  use_sim_time: false

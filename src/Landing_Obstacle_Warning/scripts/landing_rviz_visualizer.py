@@ -3,13 +3,12 @@
 
 import math
 
-import rclpy
+import rospy
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from geometry_msgs.msg import Point
-from rclpy.node import Node
-from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker, MarkerArray
+from ual_ros1 import DurabilityPolicy, Node, QoSProfile, ReliabilityPolicy
 
 from landing_evaluator.msg import HeightMap, LandingStatus
 
@@ -52,7 +51,7 @@ class LandingRvizVisualizer(Node):
 
     @staticmethod
     def same_stamp(left, right):
-        return (left.sec == right.sec and left.nanosec == right.nanosec)
+        return left == right
 
     @staticmethod
     def color_for_status(status, alpha=0.75):
@@ -228,15 +227,15 @@ class LandingRvizVisualizer(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rospy.init_node('landing_rviz_visualizer')
     node = LandingRvizVisualizer()
     try:
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
     node.destroy_node()
-    if rclpy.ok():
-        rclpy.shutdown()
+    if not rospy.is_shutdown():
+        rospy.signal_shutdown('landing visualizer stopped')
 
 
 if __name__ == "__main__":

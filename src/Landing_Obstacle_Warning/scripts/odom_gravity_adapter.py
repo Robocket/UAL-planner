@@ -2,11 +2,10 @@
 
 import math
 
-import rclpy
+import rospy
 from nav_msgs.msg import Odometry
-from rclpy.node import Node
-from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Imu
+from ual_ros1 import HistoryPolicy, Node, QoSProfile, ReliabilityPolicy
 
 
 def body_up_from_orientation(orientation, world_up_z):
@@ -118,20 +117,19 @@ class OdomGravityAdapter(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rospy.init_node('landing_odom_gravity_adapter')
     node = OdomGravityAdapter()
     try:
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
     finally:
         try:
             node.destroy_node()
-            if rclpy.ok():
-                rclpy.shutdown()
+            if not rospy.is_shutdown():
+                rospy.signal_shutdown('odometry gravity adapter stopped')
         except KeyboardInterrupt:
-            # A launch service can deliver another SIGINT while Jazzy is
-            # destroying entities; shutdown is already in progress.
+            # Shutdown is already in progress.
             pass
 
 

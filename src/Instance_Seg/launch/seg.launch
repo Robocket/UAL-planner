@@ -1,0 +1,12 @@
+<launch>
+  <arg name="text_prompt" default="large ship" />
+  <arg name="device" default="auto" />
+  <arg name="use_sim_time" default="true" />
+  <param name="use_sim_time" value="$(arg use_sim_time)" />
+  <node pkg="ins_seg" type="seg.py" name="sam3_segmentation" output="screen">
+    <param name="text_prompt" value="$(arg text_prompt)" />
+    <param name="device" value="$(arg device)" />
+  </node>
+  <node pkg="ins_seg" type="projection.py" name="pointcloud_projection" output="screen" />
+  <node pkg="ins_seg" type="graph.py" name="instance_graph" output="screen" />
+</launch>

@@ -1,0 +1,13 @@
+<launch>
+  <node pkg="auto_landing" type="evaluate.py" name="landing_region_evaluator" output="screen">
+    <param name="input_topic" value="/projected_cloud" />
+    <param name="drone_radius" value="0.5" />
+    <param name="safety_margin" value="0.15" />
+    <param name="grid_resolution" value="0.10" />
+    <param name="max_slope_deg" value="10.0" />
+    <param name="max_roughness" value="0.05" />
+    <param name="max_height_range" value="0.15" />
+  </node>
+  <node pkg="auto_landing" type="track_landing_point.py"
+        name="landing_point_tracker" output="screen" />
+</launch>

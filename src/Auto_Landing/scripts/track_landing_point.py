@@ -3,10 +3,10 @@
 
 import math
 
-import rclpy
+import rospy
 from geometry_msgs.msg import PointStamped
-from rclpy.node import Node
 from visualization_msgs.msg import Marker
+from ual_ros1 import Node
 
 from auto_landing.msg import LandingRegionArray
 
@@ -149,17 +149,17 @@ class LandingPointTracker(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rospy.init_node('landing_point_tracker')
     node = LandingPointTracker()
     try:
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
     finally:
         try:
             node.destroy_node()
-            if rclpy.ok():
-                rclpy.shutdown()
+            if not rospy.is_shutdown():
+                rospy.signal_shutdown('landing point tracker stopped')
         except KeyboardInterrupt:
             pass
 

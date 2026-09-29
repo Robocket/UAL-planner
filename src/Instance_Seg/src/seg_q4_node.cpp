@@ -11,17 +11,17 @@
 #include <vector>
 
 #include <curl/curl.h>
-#include <cv_bridge/cv_bridge.hpp>
-#include <diagnostic_msgs/msg/diagnostic_array.hpp>
-#include <diagnostic_msgs/msg/diagnostic_status.hpp>
-#include <diagnostic_msgs/msg/key_value.hpp>
+#include <cv_bridge/cv_bridge.h>
+#include <diagnostic_msgs/DiagnosticArray.h>
+#include <diagnostic_msgs/DiagnosticStatus.h>
+#include <diagnostic_msgs/KeyValue.h>
 #include <opencv2/imgproc.hpp>
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/image_encodings.hpp>
-#include <sensor_msgs/msg/image.hpp>
+#include <ros/ros.h>
+#include <sensor_msgs/image_encodings.h>
+#include <sensor_msgs/Image.h>
 
-#include "ins_seg/msg/seg_info.hpp"
-#include "ins_seg/msg/segmentation_result.hpp"
+#include <ins_seg/SegInfo.h>
+#include <ins_seg/SegmentationResult.h>
 #include "sam3.h"
 
 namespace fs = std::filesystem;
@@ -35,10 +35,10 @@ double elapsed_ms(const Clock::time_point & begin, const Clock::time_point & end
   return std::chrono::duration<double, std::milli>(end - begin).count();
 }
 
-diagnostic_msgs::msg::KeyValue diagnostic_value(
+diagnostic_msgs::KeyValue diagnostic_value(
   const std::string & key, const std::string & value)
 {
-  diagnostic_msgs::msg::KeyValue item;
+  diagnostic_msgs::KeyValue item;
   item.key = key;
   item.value = value;
   return item;
@@ -62,11 +62,11 @@ std::string default_model_path()
 
 }  // namespace
 
-class Sam3Q4Segmentation final : public rclcpp::Node
+class Sam3Q4Segmentation final
 {
 public:
   Sam3Q4Segmentation()
-  : Node("sam3_segmentation")
+  : nh_(), pnh_("~")
   {
     declare_parameter<std::string>("image_topic", "/camera/color/image_raw");
     declare_parameter<std::string>("result_topic", "/sam3/segmentation");
@@ -86,7 +86,7 @@ public:
       "https://huggingface.co/PABannier/sam3.cpp/resolve/main/"
       "sam3-q4_0.ggml");
     declare_parameter<std::string>("q4_model_path", "");
-    declare_parameter<int64_t>("q4_model_size_bytes", 706606590);
+    declare_parameter<int>("q4_model_size_bytes", 706606590);
     declare_parameter<bool>("q4_auto_download", true);
     declare_parameter<int>("q4_num_threads", 8);
     declare_parameter<bool>("q4_use_gpu", false);
@@ -120,8 +120,7 @@ public:
     params.model_path = model_path;
     params.n_threads = static_cast<int>(get_parameter("q4_num_threads").as_int());
     params.use_gpu = get_parameter("q4_use_gpu").as_bool();
-    RCLCPP_INFO(
-      get_logger(), "正在加载 SAM 3 Q4_0: %s (threads=%d, gpu=%s)",
+    ROS_INFO("正在加载 SAM 3 Q4_0: %s (threads=%d, gpu=%s)",
       model_path.c_str(), params.n_threads, params.use_gpu ? "true" : "false");
     const auto load_started = Clock::now();
     model_ = sam3_load_model(params);
@@ -135,26 +134,55 @@ public:
     if (!state_) {
       throw std::runtime_error("sam3.cpp 无法创建推理状态");
     }
-    RCLCPP_INFO(
-      get_logger(), "SAM 3 Q4_0 加载完成，耗时 %.1f s",
+    ROS_INFO("SAM 3 Q4_0 加载完成，耗时 %.1f s",
       elapsed_ms(load_started, Clock::now()) / 1000.0);
 
     const auto depth = static_cast<size_t>(get_parameter("qos_depth").as_int());
-    result_pub_ = create_publisher<ins_seg::msg::SegmentationResult>(
+    result_pub_ = nh_.advertise<ins_seg::SegmentationResult>(
       get_parameter("result_topic").as_string(), depth);
-    annotated_pub_ = create_publisher<sensor_msgs::msg::Image>(
+    annotated_pub_ = nh_.advertise<sensor_msgs::Image>(
       get_parameter("annotated_topic").as_string(), depth);
-    performance_pub_ = create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
+    performance_pub_ = nh_.advertise<diagnostic_msgs::DiagnosticArray>(
       get_parameter("performance_topic").as_string(), depth);
-    image_sub_ = create_subscription<sensor_msgs::msg::Image>(
-      image_topic_, rclcpp::SensorDataQoS().keep_last(depth),
-      std::bind(&Sam3Q4Segmentation::image_callback, this, std::placeholders::_1));
-    RCLCPP_INFO(
-      get_logger(), "SAM 3 Q4_0 节点已启动: topic=%s, prompt=\"%s\"",
+    image_sub_ = nh_.subscribe(
+      image_topic_, depth, &Sam3Q4Segmentation::image_callback, this,
+      ros::TransportHints().tcpNoDelay());
+    ROS_INFO("SAM 3 Q4_0 节点已启动: topic=%s, prompt=\"%s\"",
       image_topic_.c_str(), text_prompt_.c_str());
   }
 
 private:
+  struct ParameterValue
+  {
+    XmlRpc::XmlRpcValue value;
+
+    std::string as_string() const {return static_cast<std::string>(value);}
+    int64_t as_int() const {return static_cast<int>(value);}
+    double as_double() const
+    {
+      return value.getType() == XmlRpc::XmlRpcValue::TypeInt ?
+        static_cast<int>(value) : static_cast<double>(value);
+    }
+    bool as_bool() const {return static_cast<bool>(value);}
+  };
+
+  template<typename T>
+  void declare_parameter(const std::string & name, const T & fallback)
+  {
+    T value;
+    pnh_.param<T>(name, value, fallback);
+    pnh_.setParam(name, value);
+  }
+
+  ParameterValue get_parameter(const std::string & name) const
+  {
+    XmlRpc::XmlRpcValue value;
+    if (!pnh_.getParam(name, value)) {
+      throw std::runtime_error("缺少参数: " + name);
+    }
+    return {value};
+  }
+
   struct Track
   {
     int id;
@@ -164,7 +192,6 @@ private:
 
   struct DownloadProgress
   {
-    rclcpp::Logger logger;
     int last_percent{-1};
   };
 
@@ -210,26 +237,36 @@ private:
     const int percent = static_cast<int>(100 * current / total);
     if (percent >= progress->last_percent + 10 || percent == 100) {
       progress->last_percent = percent;
-      RCLCPP_INFO(progress->logger, "Q4_0 下载进度: %d%%", percent);
+      ROS_INFO("Q4_0 下载进度: %d%%", percent);
     }
     return 0;
   }
 
   void ensure_model(const std::string & model_path)
   {
-    const auto expected_size = static_cast<uintmax_t>(
-      get_parameter("q4_model_size_bytes").as_int());
+    const auto configured_size = get_parameter("q4_model_size_bytes").as_int();
+    if (configured_size <= 0) {
+      throw std::invalid_argument("q4_model_size_bytes 必须大于 0");
+    }
+    const auto expected_size = static_cast<uintmax_t>(configured_size);
     std::error_code error;
     if (fs::is_regular_file(model_path, error) &&
       fs::file_size(model_path, error) == expected_size)
     {
-      RCLCPP_INFO(get_logger(), "使用已缓存的 SAM 3 Q4_0: %s", model_path.c_str());
+      ROS_INFO("使用已缓存的 SAM 3 Q4_0: %s", model_path.c_str());
       return;
     }
     if (!get_parameter("q4_auto_download").as_bool()) {
       throw std::runtime_error("Q4_0 模型不存在且 q4_auto_download=false: " + model_path);
     }
-    fs::create_directories(fs::path(model_path).parent_path());
+    const auto parent = fs::path(model_path).parent_path();
+    if (!parent.empty()) {
+      fs::create_directories(parent, error);
+      if (error) {
+        throw std::runtime_error(
+                "无法创建 Q4_0 模型目录 " + parent.string() + ": " + error.message());
+      }
+    }
     const std::string temporary_path = model_path + ".part";
     FILE * output = std::fopen(temporary_path.c_str(), "wb");
     if (output == nullptr) {
@@ -241,9 +278,8 @@ private:
       throw std::runtime_error("libcurl 初始化失败");
     }
     const auto url = get_parameter("q4_model_url").as_string();
-    DownloadProgress progress{get_logger()};
-    RCLCPP_INFO(
-      get_logger(), "首次运行自动下载 SAM 3 Q4_0 (约 674 MiB): %s", url.c_str());
+    DownloadProgress progress;
+    ROS_INFO("首次运行自动下载 SAM 3 Q4_0 (约 674 MiB): %s", url.c_str());
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
@@ -271,8 +307,14 @@ private:
               "Q4_0 文件大小校验失败，期望 " + std::to_string(expected_size) +
               "，实际 " + std::to_string(actual_size));
     }
-    fs::rename(temporary_path, model_path);
-    RCLCPP_INFO(get_logger(), "Q4_0 下载并校验完成: %s", model_path.c_str());
+    fs::rename(temporary_path, model_path, error);
+    if (error) {
+      const std::string rename_error = error.message();
+      error.clear();
+      fs::remove(temporary_path, error);
+      throw std::runtime_error("无法保存 Q4_0 模型: " + rename_error);
+    }
+    ROS_INFO("Q4_0 下载并校验完成: %s", model_path.c_str());
   }
 
   static double mask_iou(const cv::Mat & first, const cv::Mat & second)
@@ -341,13 +383,12 @@ private:
       latency_ema_ms_ = performance_ema_alpha_ * total_ms +
         (1.0 - performance_ema_alpha_) * latency_ema_ms_;
     }
-    diagnostic_msgs::msg::DiagnosticStatus status;
+    diagnostic_msgs::DiagnosticStatus status;
     status.name = "sam3_segmentation/performance";
     status.hardware_id = "CPU / sam3.cpp Q4_0";
     status.level = total_ms > performance_warn_latency_ms_ ?
-      diagnostic_msgs::msg::DiagnosticStatus::WARN :
-      diagnostic_msgs::msg::DiagnosticStatus::OK;
-    status.message = status.level == diagnostic_msgs::msg::DiagnosticStatus::WARN ?
+      diagnostic_msgs::DiagnosticStatus::WARN : diagnostic_msgs::DiagnosticStatus::OK;
+    status.message = status.level == diagnostic_msgs::DiagnosticStatus::WARN ?
       "inference latency above configured limit" : "ok";
     status.values = {
       diagnostic_value("frame_index", std::to_string(processed_frames_)),
@@ -359,13 +400,13 @@ private:
       diagnostic_value("effective_fps", std::to_string(1000.0 / latency_ema_ms_)),
       diagnostic_value("quantization", "q4_0"),
       diagnostic_value("backend", "sam3.cpp")};
-    diagnostic_msgs::msg::DiagnosticArray message;
-    message.header.stamp = now();
+    diagnostic_msgs::DiagnosticArray message;
+    message.header.stamp = ros::Time::now();
     message.status.push_back(std::move(status));
-    performance_pub_->publish(message);
+    performance_pub_.publish(message);
   }
 
-  void image_callback(const sensor_msgs::msg::Image::ConstSharedPtr message)
+  void image_callback(const sensor_msgs::Image::ConstPtr & message)
   {
     const auto started = Clock::now();
     try {
@@ -428,13 +469,13 @@ private:
 
       cv::Mat id_map(rgb.rows, rgb.cols, CV_32SC1, cv::Scalar(0));
       cv::Mat annotated = cv_image->image.clone();
-      ins_seg::msg::SegmentationResult output;
+      ins_seg::SegmentationResult output;
       output.header = message->header;
       for (int i = static_cast<int>(masks.size()) - 1; i >= 0; --i) {
         id_map.setTo(track_ids[static_cast<size_t>(i)], masks[static_cast<size_t>(i)]);
       }
       for (size_t i = 0; i < masks.size(); ++i) {
-        ins_seg::msg::SegInfo info;
+        ins_seg::SegInfo info;
         info.track_id = track_ids[i];
         info.class_name = text_prompt_;
         info.confidence = scores[i];
@@ -459,9 +500,9 @@ private:
       if (publish_annotated_) {
         output.annotated_image = *cv_bridge::CvImage(
           message->header, sensor_msgs::image_encodings::BGR8, annotated).toImageMsg();
-        annotated_pub_->publish(output.annotated_image);
+        annotated_pub_.publish(output.annotated_image);
       }
-      result_pub_->publish(output);
+      result_pub_.publish(output);
       const auto publish_done = Clock::now();
       ++processed_frames_;
       const double total_ms = elapsed_ms(started, publish_done);
@@ -469,17 +510,18 @@ private:
         masks.size(), elapsed_ms(encode_started, encode_done),
         elapsed_ms(encode_done, segment_done),
         elapsed_ms(segment_done, publish_done), total_ms);
-      RCLCPP_INFO(
-        get_logger(), "SAM 3 Q4_0 第 %zu 帧: %zu 个实例, total=%.0f ms "
+      ROS_INFO("SAM 3 Q4_0 第 %zu 帧: %zu 个实例, total=%.0f ms "
         "(encode=%.0f, segment=%.0f), EMA FPS=%.3f",
         processed_frames_, masks.size(), total_ms,
         elapsed_ms(encode_started, encode_done), elapsed_ms(encode_done, segment_done),
         1000.0 / latency_ema_ms_);
     } catch (const std::exception & exception) {
-      RCLCPP_ERROR(get_logger(), "SAM 3 Q4_0 图像处理失败: %s", exception.what());
+      ROS_ERROR("SAM 3 Q4_0 图像处理失败: %s", exception.what());
     }
   }
 
+  ros::NodeHandle nh_;
+  ros::NodeHandle pnh_;
   std::string image_topic_;
   std::string text_prompt_;
   double confidence_threshold_{0.5};
@@ -498,24 +540,28 @@ private:
   std::vector<Track> tracks_;
   std::shared_ptr<sam3_model> model_;
   sam3_state_ptr state_;
-  rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr image_sub_;
-  rclcpp::Publisher<ins_seg::msg::SegmentationResult>::SharedPtr result_pub_;
-  rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr annotated_pub_;
-  rclcpp::Publisher<diagnostic_msgs::msg::DiagnosticArray>::SharedPtr performance_pub_;
+  ros::Subscriber image_sub_;
+  ros::Publisher result_pub_;
+  ros::Publisher annotated_pub_;
+  ros::Publisher performance_pub_;
 };
 
 int main(int argc, char ** argv)
 {
-  curl_global_init(CURL_GLOBAL_DEFAULT);
-  rclcpp::init(argc, argv);
-  try {
-    rclcpp::spin(std::make_shared<Sam3Q4Segmentation>());
-  } catch (const std::exception & exception) {
-    RCLCPP_FATAL(rclcpp::get_logger("sam3_segmentation"), "%s", exception.what());
+  const CURLcode curl_result = curl_global_init(CURL_GLOBAL_DEFAULT);
+  if (curl_result != CURLE_OK) {
+    std::fprintf(stderr, "libcurl 全局初始化失败: %s\n", curl_easy_strerror(curl_result));
+    return 1;
   }
-  if (rclcpp::ok()) {
-    rclcpp::shutdown();
+  ros::init(argc, argv, "sam3_segmentation");
+  int exit_code = 0;
+  try {
+    Sam3Q4Segmentation node;
+    ros::spin();
+  } catch (const std::exception & exception) {
+    ROS_FATAL("%s", exception.what());
+    exit_code = 1;
   }
   curl_global_cleanup();
-  return 0;
+  return exit_code;
 }

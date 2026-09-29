@@ -1,0 +1,6 @@
+<launch>
+  <arg name="config" default="$(find landing_evaluator)/config/landing.yaml" />
+  <rosparam command="load" file="$(arg config)" />
+  <node pkg="landing_evaluator" type="landing_evaluator_node"
+        name="landing_evaluator" output="screen" />
+</launch>

@@ -1,10 +1,9 @@
-# ROS / catkin / colcon build artifacts
+# ROS / catkin build artifacts
 /build/
 /devel/
 /install/
 /log/
 /.catkin_tools/
-/.colcon/
 
 # CMake build artifacts (including in-source builds)
 CMakeCache.txt
@@ -44,7 +43,6 @@ dist/
 *.log
 *.bag
 *.bag.active
-*.db3
 *.pid
 core
 core.*

@@ -1,0 +1,110 @@
+# Algorithm parameters shared by every radar/camera profile.
+sam3_segmentation:
+  result_topic: /sam3/segmentation
+  annotated_topic: /sam3/annotated_image
+  text_prompt: "large ship"
+  confidence_threshold: 0.5
+  mask_threshold: 0.5
+  min_mask_area_ratio: 0.0
+  max_instances: 20
+  tracking_iou_threshold: 0.3
+  max_track_age_frames: 5
+  inference_resolution: 1008
+  device: auto
+  model_id: facebook/sam3
+  model_revision: master
+  model_cache_dir: ""
+  model_local_files_only: false
+  model_download_max_workers: 4
+  # Used only by the optional TorchAO/Python backend (seg.py).
+  quantization: int8_dynamic
+  int4_group_size: 128
+  compute_dtype: float32
+  compile_model: false
+  # Default backend is sam3.cpp with the full text-capable GGML Q4_0 model.
+  # Empty path selects ~/.cache/ual_planner/models/sam3-q4_0.ggml.
+  q4_model_url: "https://huggingface.co/PABannier/sam3.cpp/resolve/main/sam3-q4_0.ggml"
+  q4_model_path: ""
+  q4_model_size_bytes: 706606590
+  q4_auto_download: true
+  q4_num_threads: 8
+  q4_use_gpu: false
+  q4_nms_threshold: 0.1
+  performance_topic: /sam3/performance
+  performance_log_period_frames: 1
+  performance_warn_latency_ms: 1000.0
+  performance_ema_alpha: 0.2
+  show_result: false
+  publish_annotated: true
+  overlay_alpha: 0.45
+  qos_depth: 1
+
+pointcloud_projection:
+  near_plane: 0.1
+  far_plane: 100.0
+  point_size: 1
+  color_mode: instance
+  segmentation_topic: /sam3/segmentation
+  projected_image_topic: /projected_image
+  projected_cloud_topic: /projected_cloud
+  projected_info_topic: /projected_instance_info
+  pointcloud_cache_size: 80
+  odometry_cache_size: 512
+  timestamp_reset_threshold_sec: 30.0
+  sync_slop: 0.1
+  coordinate_ema_alpha: 0.6
+
+instance_graph:
+  info_topic: /projected_instance_info
+  # Empty means lock to the first valid world frame received at runtime.
+  world_frame: ""
+  max_instances: 1000
+  distance_threshold: 0.5
+  ema_alpha: 0.6
+  subscriber_qos_depth: 10
+  log_period_sec: 1.0
+
+landing_evaluator:
+  output_topic: /landing/status
+  height_map_topic: /landing/height_map
+  startup_enabled: true
+  enable_topic: /landing_evaluator/enable
+  landing_radius: 0.70
+  min_range: 0.30
+  max_range: 30.0
+  min_roi_points: 100
+  ransac_iterations: 60
+  ransac_seed: 1279348292
+  ransac_distance: 0.06
+  ransac_early_exit_ratio: 0.90
+  max_slope_deg: 8.0
+  max_roughness_rms: 0.05
+  max_roughness_p95: 0.08
+  grid_resolution: 0.15
+  max_grid_cells: 1000000
+  grid_min_points: 2
+  min_coverage_ratio: 0.80
+  min_inlier_ratio: 0.70
+  max_step_height: 0.10
+  airspace_clearance_height: 0.12
+  airspace_ceiling_z: -0.10
+  airspace_min_points: 3
+  max_occupied_cell_ratio: 0.0
+  confirmation_frames: 3
+  landable_log_delay_sec: 5.0
+  watchdog/cloud_timeout_sec: 0.30
+  watchdog/publish_period_sec: 1.0
+  imu/required: true
+  imu/timeout_sec: 0.15
+  imu/filter_alpha: 0.12
+  imu/gravity_norm_filter_alpha: 0.01
+  imu/max_angular_velocity: 0.8
+  imu/max_accel_deviation_ratio: 0.30
+
+landing_rviz_visualizer:
+  status_topic: /landing/status
+  height_map_topic: /landing/height_map
+  marker_topic: /landing/markers
+  diagnostics_topic: /landing/diagnostics
+  text_height: 0.18
+  plane_thickness: 0.025

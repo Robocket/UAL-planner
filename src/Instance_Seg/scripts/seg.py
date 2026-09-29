@@ -5,13 +5,12 @@ import time
 
 import cv2
 import numpy as np
-import rclpy
+import rospy
 from cv_bridge import CvBridge, CvBridgeError
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from PIL import Image as PilImage
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
+from ual_ros1 import Node, qos_profile_sensor_data
 
 try:
     import torch
@@ -610,19 +609,19 @@ class Sam3Segmentation(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rospy.init_node('sam3_segmentation')
     node = None
     try:
         node = Sam3Segmentation()
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
     finally:
         try:
             if node is not None:
                 node.destroy_node()
-            if rclpy.ok():
-                rclpy.shutdown()
+            if not rospy.is_shutdown():
+                rospy.signal_shutdown('SAM 3 segmentation stopped')
         except KeyboardInterrupt:
             pass
 

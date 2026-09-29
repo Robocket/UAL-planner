@@ -1,57 +1,60 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.0.2)
 project(landing_evaluator)
 
-if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 17)
-endif()
-
-find_package(ament_cmake REQUIRED)
-find_package(rosidl_default_generators REQUIRED)
-find_package(rclcpp REQUIRED)
-find_package(sensor_msgs REQUIRED)
-find_package(std_msgs REQUIRED)
-find_package(std_srvs REQUIRED)
-
-rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/LandingStatus.msg"
-  "msg/HeightMap.msg"
-  DEPENDENCIES std_msgs
+add_compile_options(-Wall -Wextra -Wpedantic)
+find_package(catkin REQUIRED COMPONENTS
+  diagnostic_msgs
+  geometry_msgs
+  message_generation
+  nav_msgs
+  roscpp
+  sensor_msgs
+  std_msgs
+  std_srvs
+  ual_ros1
+  visualization_msgs
 )
 
+add_message_files(FILES HeightMap.msg LandingStatus.msg)
+generate_messages(DEPENDENCIES std_msgs)
+catkin_package(
+  INCLUDE_DIRS include
+  LIBRARIES landing_evaluator_core
+  CATKIN_DEPENDS message_runtime roscpp sensor_msgs std_msgs std_srvs ual_ros1)
+
 add_library(landing_evaluator_core src/evaluator.cpp)
-target_include_directories(landing_evaluator_core PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>)
+target_compile_features(landing_evaluator_core PUBLIC cxx_std_17)
+target_include_directories(landing_evaluator_core PUBLIC include)
 
 add_executable(landing_evaluator_node src/landing_evaluator_node.cpp)
-target_include_directories(landing_evaluator_node PRIVATE include)
-ament_target_dependencies(landing_evaluator_node rclcpp sensor_msgs std_msgs std_srvs)
-target_link_libraries(landing_evaluator_node landing_evaluator_core)
-rosidl_get_typesupport_target(cpp_typesupport_target ${PROJECT_NAME} rosidl_typesupport_cpp)
-target_link_libraries(landing_evaluator_node "${cpp_typesupport_target}")
+target_compile_features(landing_evaluator_node PRIVATE cxx_std_17)
+target_include_directories(landing_evaluator_node PRIVATE include ${catkin_INCLUDE_DIRS})
+add_dependencies(landing_evaluator_node
+  ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(landing_evaluator_node landing_evaluator_core ${catkin_LIBRARIES})
 
-install(TARGETS landing_evaluator_core landing_evaluator_node
-  ARCHIVE DESTINATION lib
-  LIBRARY DESTINATION lib
-  RUNTIME DESTINATION lib/${PROJECT_NAME})
-install(DIRECTORY include/ DESTINATION include)
-install(DIRECTORY config launch rviz DESTINATION share/${PROJECT_NAME})
-install(PROGRAMS
+catkin_install_python(PROGRAMS
   scripts/avia_landing_test.py
   scripts/landing_rviz_visualizer.py
   scripts/odom_gravity_adapter.py
-  DESTINATION lib/${PROJECT_NAME})
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
-if(BUILD_TESTING)
-  find_package(ament_cmake_gtest REQUIRED)
-  find_package(ament_cmake_pytest REQUIRED)
-  ament_add_gtest(test_evaluator test/test_evaluator.cpp)
-  target_link_libraries(test_evaluator landing_evaluator_core)
-  target_include_directories(test_evaluator PRIVATE include)
-  ament_add_pytest_test(test_odom_gravity_adapter
-    test/test_odom_gravity_adapter.py)
+if(CATKIN_ENABLE_TESTING)
+  catkin_add_gtest(test_evaluator test/test_evaluator.cpp)
+  if(TARGET test_evaluator)
+    target_compile_features(test_evaluator PRIVATE cxx_std_17)
+    target_include_directories(test_evaluator PRIVATE include)
+    target_link_libraries(test_evaluator landing_evaluator_core gtest_main)
+  endif()
+  catkin_add_nosetests(test/test_odom_gravity_adapter.py)
 endif()
 
-ament_export_include_directories(include)
-ament_export_libraries(landing_evaluator_core)
-ament_package()
+install(TARGETS landing_evaluator_core landing_evaluator_node
+  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+install(DIRECTORY include/${PROJECT_NAME}/
+  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION})
+install(DIRECTORY config launch rviz
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+  PATTERN "__pycache__" EXCLUDE)

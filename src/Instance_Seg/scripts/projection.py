@@ -5,14 +5,13 @@ from collections import deque
 
 import cv2
 import numpy as np
-import rclpy
+import rospy
 from cv_bridge import CvBridge, CvBridgeError
 from nav_msgs.msg import Odometry
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image, PointCloud2
-from sensor_msgs_py import point_cloud2
+from sensor_msgs import point_cloud2
 from std_msgs.msg import Header
+from ual_ros1 import Node, qos_profile_sensor_data
 
 from ins_seg.msg import InstanceInfo, ProjectedInstanceInfo, SegmentationResult
 
@@ -198,7 +197,7 @@ class PointCloudProjection(Node):
     @staticmethod
     def _stamp_ns(message):
         stamp = message.header.stamp
-        return int(stamp.sec) * 1_000_000_000 + int(stamp.nanosec)
+        return int(stamp.secs) * 1_000_000_000 + int(stamp.nsecs)
 
     def _append_cache(self, cache, message, cache_name):
         stamp_ns = self._stamp_ns(message)
@@ -252,11 +251,6 @@ class PointCloudProjection(Node):
         cloud = point_cloud2.read_points(
             message, field_names=('x', 'y', 'z'), skip_nans=True
         )
-        array = np.asarray(cloud)
-        if array.dtype.names:
-            return np.column_stack([array[name] for name in ('x', 'y', 'z')]).astype(
-                np.float64, copy=False
-            )
         array = np.asarray(list(cloud), dtype=np.float64)
         return array.reshape((-1, 3))
 
@@ -446,17 +440,17 @@ class PointCloudProjection(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rospy.init_node('pointcloud_projection')
     node = PointCloudProjection()
     try:
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
     finally:
         try:
             node.destroy_node()
-            if rclpy.ok():
-                rclpy.shutdown()
+            if not rospy.is_shutdown():
+                rospy.signal_shutdown('pointcloud projection stopped')
         except KeyboardInterrupt:
             pass
 

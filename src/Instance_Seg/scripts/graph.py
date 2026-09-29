@@ -5,8 +5,8 @@ import math
 import time
 from typing import Dict, Optional, Tuple
 
-import rclpy
-from rclpy.node import Node
+import rospy
+from ual_ros1 import Node
 
 from ins_seg.msg import ProjectedInstanceInfo
 
@@ -155,17 +155,17 @@ class InstanceGraph(Node):
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rospy.init_node('instance_graph')
     node = InstanceGraph()
     try:
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
     finally:
         try:
             node.destroy_node()
-            if rclpy.ok():
-                rclpy.shutdown()
+            if not rospy.is_shutdown():
+                rospy.signal_shutdown('instance graph stopped')
         except KeyboardInterrupt:
             pass
 

@@ -80,7 +80,8 @@ Result Evaluate(const std::vector<Point3> & points, const Parameters & p)
   out.ground_height.assign(cell_total,nan);out.highest_point.assign(cell_total,nan);out.airspace_intrusion.assign(cell_total,0.0F);
   out.cell_point_count.assign(cell_total,0U);out.ground_point_count.assign(cell_total,0U);out.airspace_occupied.assign(cell_total,0U);
   for(const auto & q:roi){int x=static_cast<int>((q.x+p.landing_radius)/p.grid_resolution),y=static_cast<int>((q.y+p.landing_radius)/p.grid_resolution);
-    if(x<0||y<0||x>=side||y>=side)continue;auto & c=grid[y*side+x];++c.count;c.highest_z=std::max(c.highest_z,q.z);}
+    if(x<0||y<0||x>=side||y>=side)continue;
+    auto & c=grid[y*side+x];++c.count;c.highest_z=std::max(c.highest_z,q.z);}
   for(size_t i=0;i<grid.size();++i){out.cell_point_count[i]=grid[i].count;if(grid[i].count)out.highest_point[i]=grid[i].highest_z;}
   if(roi.size()<static_cast<size_t>(std::max(3,p.min_roi_points))){out.reasons=kTooFewPoints;return out;}
 
@@ -110,13 +111,15 @@ Result Evaluate(const std::vector<Point3> & points, const Parameters & p)
   std::nth_element(errors.begin(),errors.begin()+p95_index,errors.end());out.roughness_p95=errors[p95_index];
 
   for(const auto & q:roi){int x=static_cast<int>((q.x+p.landing_radius)/p.grid_resolution),y=static_cast<int>((q.y+p.landing_radius)/p.grid_resolution);
-    if(x<0||y<0||x>=side||y>=side)continue;auto & c=grid[y*side+x];const double h=Dot(best,q);
+    if(x<0||y<0||x>=side||y>=side)continue;
+    auto & c=grid[y*side+x];const double h=Dot(best,q);
     if(std::abs(h)<=p.ransac_distance){++c.ground_count;c.ground_z_sum+=q.z;c.residual_sum+=h;}
     if(h>p.airspace_clearance_height&&q.z<=p.airspace_ceiling_z){++c.airspace_points;c.max_intrusion=std::max(c.max_intrusion,h);out.max_obstacle_height=std::max(out.max_obstacle_height,h);}}
   int expected=0,valid=0,occupied_cells=0;bool obstacle=false;
   for(int y=0;y<side;++y)for(int x=0;x<side;++x){double cx=-p.landing_radius+(x+0.5)*p.grid_resolution,cy=-p.landing_radius+(y+0.5)*p.grid_resolution;
     const size_t i=static_cast<size_t>(y)*side+x;if(cx*cx+cy*cy>radius2)continue;++expected;const auto & c=grid[i];
-    if(c.ground_count>=p.grid_min_points)++valid;if(c.airspace_points>=p.airspace_min_points){++occupied_cells;out.airspace_occupied[i]=1U;}
+    if(c.ground_count>=p.grid_min_points)++valid;
+    if(c.airspace_points>=p.airspace_min_points){++occupied_cells;out.airspace_occupied[i]=1U;}
     if(c.ground_count){out.ground_height[i]=c.ground_z_sum/c.ground_count;out.ground_point_count[i]=c.ground_count;}
     out.airspace_intrusion[i]=c.max_intrusion;}
   out.coverage_ratio=expected?static_cast<double>(valid)/expected:0;
@@ -151,10 +154,17 @@ Result Evaluate(const std::vector<Point3> & points, const Parameters & p)
 
 std::string ReasonsToString(uint32_t r)
 {
-  if(r==kNone)return "none";std::vector<std::string> s;
-  if(r&kTooFewPoints)s.emplace_back("too_few_points");if(r&kNoPlane)s.emplace_back("no_plane");if(r&kLowCoverage)s.emplace_back("low_coverage");
-  if(r&kStabilizing)s.emplace_back("stabilizing");if(r&kSlope)s.emplace_back("slope");if(r&kRoughness)s.emplace_back("roughness");
-  if(r&kObstacle)s.emplace_back("airspace_occupied");if(r&kStep)s.emplace_back("step");if(r&kLowInlierRatio)s.emplace_back("low_inlier_ratio");
+  if(r==kNone)return "none";
+  std::vector<std::string> s;
+  if(r&kTooFewPoints)s.emplace_back("too_few_points");
+  if(r&kNoPlane)s.emplace_back("no_plane");
+  if(r&kLowCoverage)s.emplace_back("low_coverage");
+  if(r&kStabilizing)s.emplace_back("stabilizing");
+  if(r&kSlope)s.emplace_back("slope");
+  if(r&kRoughness)s.emplace_back("roughness");
+  if(r&kObstacle)s.emplace_back("airspace_occupied");
+  if(r&kStep)s.emplace_back("step");
+  if(r&kLowInlierRatio)s.emplace_back("low_inlier_ratio");
   if(r&kImuUnavailable)s.emplace_back("imu_unavailable");
   if(r&kCloudTimeout)s.emplace_back("cloud_timeout");
   if(r&kGridTooLarge)s.emplace_back("grid_too_large");

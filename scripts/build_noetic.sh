@@ -3,16 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-JAZZY_SETUP="${ROS_JAZZY_SETUP:-/opt/ros/jazzy/setup.bash}"
+NOETIC_SETUP="${ROS_NOETIC_SETUP:-/opt/ros/noetic/setup.bash}"
 
-if [[ ! -r "${JAZZY_SETUP}" ]]; then
-    echo "找不到 ROS 2 Jazzy 环境: ${JAZZY_SETUP}" >&2
+if [[ ! -r "${NOETIC_SETUP}" ]]; then
+    echo "找不到 ROS Noetic 环境: ${NOETIC_SETUP}" >&2
     exit 1
 fi
 
-# Start a non-interactive shell without inherited ROS/CMake/Python prefixes.
-# This prevents an earlier Noetic/Humble/Jazzy source command from creating a
-# mixed CMake cache. HOME and other user settings are inherited unchanged.
 exec env \
     -u AMENT_PREFIX_PATH \
     -u CMAKE_PREFIX_PATH \
@@ -31,9 +28,5 @@ exec env \
         set -u
         cd "$2"
         echo "Building with ROS_DISTRO=${ROS_DISTRO}"
-        colcon --log-base log/jazzy build \
-            --build-base build/jazzy \
-            --install-base install/jazzy \
-            --symlink-install \
-            "${@:3}"
-    ' bash "${JAZZY_SETUP}" "${WORKSPACE_ROOT}" "$@"
+        catkin_make -DPYTHON_EXECUTABLE=/usr/bin/python3 "${@:3}"
+    ' bash "${NOETIC_SETUP}" "${WORKSPACE_ROOT}" "$@"

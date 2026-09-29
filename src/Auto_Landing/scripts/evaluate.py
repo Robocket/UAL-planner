@@ -5,12 +5,11 @@ import math
 
 import cv2
 import numpy as np
-import rclpy
-from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+import rospy
 from sensor_msgs.msg import PointCloud2, PointField
-from sensor_msgs_py import point_cloud2
+from sensor_msgs import point_cloud2
 from visualization_msgs.msg import Marker, MarkerArray
+from ual_ros1 import Node, qos_profile_sensor_data
 
 from auto_landing.msg import LandingRegion, LandingRegionArray
 
@@ -97,11 +96,6 @@ class LandingEvaluator(Node):
         cloud = point_cloud2.read_points(
             message, field_names=('x', 'y', 'z'), skip_nans=True
         )
-        array = np.asarray(cloud)
-        if array.dtype.names:
-            return np.column_stack(
-                [array[field] for field in ('x', 'y', 'z')]
-            ).astype(np.float64, copy=False)
         return np.asarray(list(cloud), dtype=np.float64).reshape((-1, 3))
 
     def pointcloud_callback(self, message):
@@ -340,7 +334,7 @@ class LandingEvaluator(Node):
             marker.color.g = data['confidence']
             marker.color.b = 0.1
             marker.color.a = 0.75
-            marker.lifetime.sec = 1
+            marker.lifetime = rospy.Duration(1.0)
             markers.markers.append(marker)
 
             text = Marker()
@@ -357,23 +351,23 @@ class LandingEvaluator(Node):
             text.scale.z = 0.22
             text.color.r = text.color.g = text.color.b = text.color.a = 1.0
             text.text = f"ID {data['id']}: {data['confidence']:.2f}"
-            text.lifetime.sec = 1
+            text.lifetime = rospy.Duration(1.0)
             markers.markers.append(text)
         self.markers_pub.publish(markers)
 
 
 def main(args=None):
-    rclpy.init(args=args)
+    rospy.init_node('landing_region_evaluator')
     node = LandingEvaluator()
     try:
-        rclpy.spin(node)
+        rospy.spin()
     except KeyboardInterrupt:
         pass
     finally:
         try:
             node.destroy_node()
-            if rclpy.ok():
-                rclpy.shutdown()
+            if not rospy.is_shutdown():
+                rospy.signal_shutdown('landing evaluator stopped')
         except KeyboardInterrupt:
             pass
 

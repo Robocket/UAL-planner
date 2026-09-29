@@ -1,0 +1,22 @@
+<launch>
+  <arg name="use_rviz" default="true" />
+  <arg name="pointcloud_topic" default="/livox/lidar" />
+  <arg name="publish_sensor_tf" default="true" />
+  <arg name="base_frame" default="base_link" />
+  <arg name="sensor_frame" default="avia_frame" />
+  <arg name="extrinsic_x" default="0.0" />
+  <arg name="extrinsic_y" default="0.0" />
+  <arg name="extrinsic_z" default="0.0" />
+  <arg name="extrinsic_roll" default="0.0" />
+  <arg name="extrinsic_pitch" default="1.5707963267948966" />
+  <arg name="extrinsic_yaw" default="0.0" />
+  <node if="$(arg publish_sensor_tf)" pkg="tf2_ros" type="static_transform_publisher"
+        name="landing_lidar_static_tf"
+        args="$(arg extrinsic_x) $(arg extrinsic_y) $(arg extrinsic_z) $(arg extrinsic_yaw) $(arg extrinsic_pitch) $(arg extrinsic_roll) $(arg base_frame) $(arg sensor_frame)" />
+  <node pkg="landing_evaluator" type="landing_rviz_visualizer.py"
+        name="landing_rviz_visualizer" output="screen" />
+  <node if="$(arg use_rviz)" pkg="rviz" type="rviz" name="landing_rviz"
+        args="-d $(find landing_evaluator)/rviz/landing_evaluator.rviz" output="screen">
+    <remap from="/livox/lidar" to="$(arg pointcloud_topic)" />
+  </node>
+</launch>
