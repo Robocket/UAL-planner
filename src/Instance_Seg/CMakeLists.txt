@@ -11,7 +11,6 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
-find_package(geometry_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(OpenSSL REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -21,11 +20,9 @@ find_package(std_msgs REQUIRED)
 find_package(CURL REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/InstanceInfo.msg"
-  "msg/ProjectedInstanceInfo.msg"
   "msg/SegInfo.msg"
   "msg/SegmentationResult.msg"
-  DEPENDENCIES geometry_msgs sensor_msgs std_msgs
+  DEPENDENCIES sensor_msgs std_msgs
 )
 
 include(FetchContent)
@@ -66,8 +63,6 @@ install(TARGETS seg_q4_node
 
 install(PROGRAMS
   scripts/compressed_image_adapter.py
-  scripts/graph.py
-  scripts/projection.py
   scripts/seg.py
   DESTINATION lib/${PROJECT_NAME}
 )

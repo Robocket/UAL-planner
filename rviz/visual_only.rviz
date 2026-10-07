@@ -11,7 +11,7 @@ Visualization Manager:
       Max Value: 1
       Median window: 5
       Min Value: 0
-      Name: Scene Water SAM3 Segmentation
+      Name: SAM3 Segmentation
       Normalize Range: true
       Topic:
         Depth: 1

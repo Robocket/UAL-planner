@@ -1,0 +1,21 @@
+# Generic raw-camera profile.
+sam3_segmentation:
+  ros__parameters:
+    use_sim_time: false
+    image_topic: /camera/color/image_raw
+
+# Reserved input contract for the future visual distance estimator. No node
+# consumes this section yet; the distance algorithm is intentionally absent.
+visual_distance_estimator:
+  ros__parameters:
+    use_sim_time: false
+    segmentation_topic: /sam3/segmentation
+    odometry_topic: /Odometry
+    camera_info_topic: /camera/camera_info
+    use_camera_info_topic: false
+    image_width: 640
+    image_height: 480
+    fx: 385.45
+    fy: 385.45
+    cx: -1.0
+    cy: -1.0

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch the camera-only path against the Scene_Water rosbag."""
+"""Launch the camera-only UAL processing path."""
 
 import os
 
@@ -17,53 +17,47 @@ def generate_launch_description():
     common_config = LaunchConfiguration('common_config')
     camera_config = LaunchConfiguration('camera_config')
     rviz_config = LaunchConfiguration('rviz_config')
+    parameter_files = [common_config, camera_config]
+
     return LaunchDescription([
         DeclareLaunchArgument(
             'common_config',
             default_value=os.path.join(share, 'config', 'common.yaml'),
+            description='Parameters shared by all camera profiles',
         ),
         DeclareLaunchArgument(
             'camera_config',
-            default_value=os.path.join(share, 'config', 'scene_water.yaml'),
-            description='Scene_Water original rosbag profile',
+            default_value=os.path.join(share, 'config', 'camera.yaml'),
+            description='Camera topics, calibration and odometry interface',
         ),
         DeclareLaunchArgument(
             'rviz_config',
-            default_value=os.path.join(share, 'rviz', 'scene_water.rviz'),
+            default_value=os.path.join(share, 'rviz', 'visual_only.rviz'),
         ),
         DeclareLaunchArgument('start_segmentation', default_value='true'),
         DeclareLaunchArgument(
-            'segmentation_executable', default_value='seg_q4_node'
+            'segmentation_executable',
+            default_value='seg_q4_node',
+            description=(
+                'seg_q4_node for GGML Q4_0; seg.py for the TorchAO fallback'
+            ),
         ),
         DeclareLaunchArgument('start_rviz', default_value='false'),
-        DeclareLaunchArgument(
-            'start_image_adapter',
-            default_value='true',
-            description='Convert the bag CompressedImage stream to Image',
-        ),
         Node(
             package='ins_seg',
-            executable='compressed_image_adapter.py',
-            name='scene_water_image_adapter',
+            executable=LaunchConfiguration('segmentation_executable'),
+            name='sam3_segmentation',
             output='screen',
-            parameters=[camera_config],
-            condition=IfCondition(LaunchConfiguration('start_image_adapter')),
+            parameters=parameter_files,
+            sigterm_timeout='45',
+            sigkill_timeout='5',
+            condition=IfCondition(LaunchConfiguration('start_segmentation')),
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
-                os.path.join(share, 'launch', 'visual_only.launch.py')
+                os.path.join(share, 'launch', 'rviz.launch.py')
             ),
-            launch_arguments={
-                'common_config': common_config,
-                'camera_config': camera_config,
-                'rviz_config': rviz_config,
-                'start_segmentation': LaunchConfiguration(
-                    'start_segmentation'
-                ),
-                'segmentation_executable': LaunchConfiguration(
-                    'segmentation_executable'
-                ),
-                'start_rviz': LaunchConfiguration('start_rviz'),
-            }.items(),
+            launch_arguments={'rviz_config': rviz_config}.items(),
+            condition=IfCondition(LaunchConfiguration('start_rviz')),
         ),
     ])
