@@ -9,7 +9,7 @@ import rclpy
 from cv_bridge import CvBridge, CvBridgeError
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from sensor_msgs.msg import Image, PointCloud2
 from sensor_msgs_py import point_cloud2
 from std_msgs.msg import Header
@@ -55,8 +55,9 @@ class PointCloudProjection(Node):
             'projected_image_topic': '/projected_image',
             'projected_cloud_topic': '/projected_cloud',
             'projected_info_topic': '/projected_instance_info',
-            'pointcloud_cache_size': 80,
-            'odometry_cache_size': 512,
+            'segmentation_qos_depth': 1,
+            'pointcloud_cache_size': 1024,
+            'odometry_cache_size': 8192,
             'timestamp_reset_threshold_sec': 30.0,
             'sync_slop': 0.1,
             'coordinate_ema_alpha': 0.6,
@@ -102,6 +103,9 @@ class PointCloudProjection(Node):
         )
         odometry_cache_size = int(
             self.get_parameter('odometry_cache_size').value
+        )
+        segmentation_qos_depth = int(
+            self.get_parameter('segmentation_qos_depth').value
         )
         self.timestamp_reset_threshold_ns = int(
             float(self.get_parameter('timestamp_reset_threshold_sec').value)
@@ -152,8 +156,12 @@ class PointCloudProjection(Node):
             raise ValueError('coordinate_ema_alpha 必须在 (0, 1] 范围内')
         if self.sync_slop < 0.0:
             raise ValueError('sync_slop 不能为负')
-        if pointcloud_cache_size <= 0 or odometry_cache_size <= 0:
-            raise ValueError('点云和里程计缓存大小必须大于 0')
+        if (
+            pointcloud_cache_size <= 0
+            or odometry_cache_size <= 0
+            or segmentation_qos_depth <= 0
+        ):
+            raise ValueError('缓存大小和分割 QoS 深度必须大于 0')
         if self.timestamp_reset_threshold_ns <= 0:
             raise ValueError('timestamp_reset_threshold_sec 必须大于 0')
         self.bridge = CvBridge()
@@ -177,7 +185,10 @@ class PointCloudProjection(Node):
             SegmentationResult,
             self.get_parameter('segmentation_topic').value,
             self._segmentation_callback,
-            qos_profile_sensor_data,
+            QoSProfile(
+                depth=segmentation_qos_depth,
+                reliability=ReliabilityPolicy.RELIABLE,
+            ),
         )
 
         self.image_pub = self.create_publisher(

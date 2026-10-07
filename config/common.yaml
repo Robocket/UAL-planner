@@ -27,6 +27,7 @@ sam3_segmentation:
     q4_model_url: "https://huggingface.co/PABannier/sam3.cpp/resolve/main/sam3-q4_0.ggml"
     q4_model_path: ""
     q4_model_size_bytes: 706606590
+    q4_model_sha256: "5dafc790c8493319f542f575e718084f4e0a452fd7e483c64853d33ffe3f1889"
     q4_auto_download: true
     q4_num_threads: 8
     q4_use_gpu: false
@@ -47,11 +48,16 @@ pointcloud_projection:
     point_size: 1
     color_mode: instance
     segmentation_topic: /sam3/segmentation
+    # SegmentationResult is about 9 MiB at 1280x1024; reliable delivery is
+    # required so fragmented masks/images are not silently dropped.
+    segmentation_qos_depth: 1
     projected_image_topic: /projected_image
     projected_cloud_topic: /projected_cloud
     projected_info_topic: /projected_instance_info
-    pointcloud_cache_size: 80
-    odometry_cache_size: 512
+    # Q4_0 CPU inference can approach 40 s while all nodes are active. Keep
+    # ample sensor history for delayed timestamp matching.
+    pointcloud_cache_size: 1024
+    odometry_cache_size: 8192
     timestamp_reset_threshold_sec: 30.0
     sync_slop: 0.1
     coordinate_ema_alpha: 0.6

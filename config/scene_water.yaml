@@ -43,10 +43,10 @@ pointcloud_projection:
     pointcloud_topic: /livox/lidar/points
     pointcloud_frame: sensor
     odometry_topic: /fsdk/aircraft_state
-    # Cache approximately 8 s of 10 Hz point clouds and 10 s of 50 Hz
-    # Odometry. Matching is triggered by the delayed segmentation result.
-    pointcloud_cache_size: 80
-    odometry_cache_size: 512
+    # Cache approximately 75 s of 10.6 Hz point clouds and 80 s of 50 Hz
+    # Odometry. Q4_0 can approach 40 s when the full pipeline is active.
+    pointcloud_cache_size: 800
+    odometry_cache_size: 4096
     sync_slop: 0.2
     # /fsdk/aircraft_state.header.frame_id is "map".
     output_frame: map

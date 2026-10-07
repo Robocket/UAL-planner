@@ -1,11 +1,19 @@
 cmake_minimum_required(VERSION 3.8)
 project(ins_seg)
 
+# sam3.cpp uses optimized kernels and selects Release when no build type is
+# supplied. Set it before ament creates symlink-install scripts so every
+# generated install fragment uses the same configuration suffix.
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+
 find_package(ament_cmake REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(diagnostic_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(OpenSSL REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -38,7 +46,8 @@ FetchContent_MakeAvailable(sam3cpp)
 
 add_executable(seg_q4_node src/seg_q4_node.cpp)
 target_compile_features(seg_q4_node PRIVATE cxx_std_17)
-target_link_libraries(seg_q4_node sam3 CURL::libcurl ${OpenCV_LIBRARIES})
+target_link_libraries(
+  seg_q4_node sam3 CURL::libcurl OpenSSL::Crypto ${OpenCV_LIBRARIES})
 target_include_directories(seg_q4_node PRIVATE ${OpenCV_INCLUDE_DIRS})
 ament_target_dependencies(
   seg_q4_node

@@ -4,7 +4,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
+#include <iomanip>
 #include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -16,6 +19,7 @@
 #include <diagnostic_msgs/msg/diagnostic_status.hpp>
 #include <diagnostic_msgs/msg/key_value.hpp>
 #include <opencv2/imgproc.hpp>
+#include <openssl/evp.h>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/image_encodings.hpp>
 #include <sensor_msgs/msg/image.hpp>
@@ -60,6 +64,40 @@ std::string default_model_path()
     "sam3-q4_0.ggml").string();
 }
 
+std::string sha256_file(const fs::path & path)
+{
+  std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> context(
+    EVP_MD_CTX_new(), EVP_MD_CTX_free);
+  if (!context || EVP_DigestInit_ex(context.get(), EVP_sha256(), nullptr) != 1) {
+    throw std::runtime_error("无法初始化 SHA-256 校验");
+  }
+  std::ifstream input(path, std::ios::binary);
+  if (!input) {
+    throw std::runtime_error("无法读取模型文件: " + path.string());
+  }
+  std::vector<char> buffer(4 * 1024 * 1024);
+  while (input) {
+    input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    const auto count = input.gcount();
+    if (count > 0 && EVP_DigestUpdate(
+        context.get(), buffer.data(), static_cast<size_t>(count)) != 1)
+    {
+      throw std::runtime_error("计算模型 SHA-256 失败");
+    }
+  }
+  unsigned char digest[EVP_MAX_MD_SIZE];
+  unsigned int digest_size = 0;
+  if (EVP_DigestFinal_ex(context.get(), digest, &digest_size) != 1) {
+    throw std::runtime_error("完成模型 SHA-256 校验失败");
+  }
+  std::ostringstream output;
+  output << std::hex << std::setfill('0');
+  for (unsigned int i = 0; i < digest_size; ++i) {
+    output << std::setw(2) << static_cast<unsigned int>(digest[i]);
+  }
+  return output.str();
+}
+
 }  // namespace
 
 class Sam3Q4Segmentation final : public rclcpp::Node
@@ -87,6 +125,9 @@ public:
       "sam3-q4_0.ggml");
     declare_parameter<std::string>("q4_model_path", "");
     declare_parameter<int64_t>("q4_model_size_bytes", 706606590);
+    declare_parameter<std::string>(
+      "q4_model_sha256",
+      "5dafc790c8493319f542f575e718084f4e0a452fd7e483c64853d33ffe3f1889");
     declare_parameter<bool>("q4_auto_download", true);
     declare_parameter<int>("q4_num_threads", 8);
     declare_parameter<bool>("q4_use_gpu", false);
@@ -208,7 +249,7 @@ private:
     }
     auto * progress = static_cast<DownloadProgress *>(client);
     const int percent = static_cast<int>(100 * current / total);
-    if (percent >= progress->last_percent + 10 || percent == 100) {
+    if (percent >= progress->last_percent + 10) {
       progress->last_percent = percent;
       RCLCPP_INFO(progress->logger, "Q4_0 下载进度: %d%%", percent);
     }
@@ -220,11 +261,15 @@ private:
     const auto expected_size = static_cast<uintmax_t>(
       get_parameter("q4_model_size_bytes").as_int());
     std::error_code error;
+    const auto expected_sha256 = get_parameter("q4_model_sha256").as_string();
     if (fs::is_regular_file(model_path, error) &&
       fs::file_size(model_path, error) == expected_size)
     {
-      RCLCPP_INFO(get_logger(), "使用已缓存的 SAM 3 Q4_0: %s", model_path.c_str());
-      return;
+      if (expected_sha256.empty() || sha256_file(model_path) == expected_sha256) {
+        RCLCPP_INFO(get_logger(), "使用已校验的 SAM 3 Q4_0: %s", model_path.c_str());
+        return;
+      }
+      RCLCPP_WARN(get_logger(), "缓存模型 SHA-256 不匹配，将重新下载");
     }
     if (!get_parameter("q4_auto_download").as_bool()) {
       throw std::runtime_error("Q4_0 模型不存在且 q4_auto_download=false: " + model_path);
@@ -270,6 +315,15 @@ private:
       throw std::runtime_error(
               "Q4_0 文件大小校验失败，期望 " + std::to_string(expected_size) +
               "，实际 " + std::to_string(actual_size));
+    }
+    if (!expected_sha256.empty()) {
+      const auto actual_sha256 = sha256_file(temporary_path);
+      if (actual_sha256 != expected_sha256) {
+        fs::remove(temporary_path, error);
+        throw std::runtime_error(
+                "Q4_0 SHA-256 校验失败，期望 " + expected_sha256 +
+                "，实际 " + actual_sha256);
+      }
     }
     fs::rename(temporary_path, model_path);
     RCLCPP_INFO(get_logger(), "Q4_0 下载并校验完成: %s", model_path.c_str());

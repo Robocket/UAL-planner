@@ -57,6 +57,10 @@ def generate_launch_description():
             name='sam3_segmentation',
             output='screen',
             parameters=parameter_files,
+            # sam3.cpp does not expose mid-graph cancellation. Allow the
+            # current CPU inference to return after SIGINT before escalating.
+            sigterm_timeout='45',
+            sigkill_timeout='5',
             condition=IfCondition(LaunchConfiguration('start_segmentation')),
         ),
         Node(

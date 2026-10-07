@@ -11,49 +11,48 @@
 source /opt/ros/jazzy/setup.bash
 sudo apt update
 rosdep install --from-paths src --ignore-src -r -y
-python3 -m venv --system-site-packages .venv-sam3
-source .venv-sam3/bin/activate
-python3 -m pip install -r src/Instance_Seg/requirements.txt
 ```
 
-如果使用 NVIDIA GPU，还需要按显卡和 CUDA 版本安装匹配的 PyTorch；默认启动参数
-使用 `device: auto`，检测到 CUDA 时优先使用 GPU。SAM 3 官方运行基线要求较新的
-CUDA GPU，CPU 仅适合接口调试。
+默认实例分割后端为 C++ `sam3.cpp` 和完整文本检测版 `sam3-q4_0.ggml`，继续使用
+`large ship` 文本提示，不读取项目原有的本地训练权重。首次启动会从公开仓库自动下载
+706,606,590 字节的 Q4_0 文件到
+`~/.cache/ual_planner/models/sam3-q4_0.ggml`，并同时校验文件大小和 SHA-256；不需要
+Hugging Face 登录。模型地址、缓存路径、摘要、CPU 线程数、NMS 和分割阈值均在
+`config/common.yaml` 配置。
 
-实例分割使用 Transformers 的 Meta SAM 3 实现和文本提示 `large ship`，不读取项目原有的
-本地训练权重。首次启动会从魔塔公开镜像 `facebook/sam3` 自动下载并缓存推理文件，不依赖
-Hugging Face 登录或其受限仓库权限。默认先在 CPU 上执行 TorchAO 动态激活 INT8 + INT8
-权重量化，再将模型移到 GPU。NVIDIA T600 4GB 上，Scene_Water 实测单帧总耗时约
-3.5 秒，相比 INT8 权重 + FP32 激活的约 6 秒降低约 40%；推理峰值显存约 1.55 GiB。
-也支持最小的动态激活 INT8 + INT4 权重方案：将 `quantization` 改成
-`int4_dynamic`，并使用 `int4_group_size: 128`。该方案在 T600 上已成功识别实例，但实测
-约 6.7 秒/帧、峰值显存约 1.59 GiB，反而比默认方案慢约 93%，因此只作为可选低常驻
-权重配置，不作为当前硬件的性能默认值。
-模型来源、缓存目录、离线模式、量化方式、计算精度和分割阈值都在 `config/common.yaml`
-中配置。当前 PyTorch/T600 组合不要把 `compute_dtype` 改为 `float16`，实测会产生 NaN
-输出。`compile_model` 默认关闭；T600 首帧编译约 101 秒，后续收益不足以抵消启动开销。
+Q4_0 当前在 Linux 上使用 CPU 后端。i7-11800H 的 Scene_Water 实测中，8 线程单独运行约
+26.6–29.6 秒/帧，完整投影链路持续运行时可接近 40 秒/帧，并能发布 4 个船只实例；
+4 线程约 54 秒/帧，16 线程约 32–41 秒/帧，因此默认使用 8 线程。它满足最小完整文本
+模型的要求，但不适合实时处理。
+点云投影缓存同步扩展到约 75–80 秒，确保延迟分割仍能匹配原始图像时刻的点云和里程计。
+分割结果在 1280×1024 下约 9 MiB，分割到投影的订阅固定使用
+Reliable QoS，避免大消息分片在 Best Effort 模式下被静默丢弃。
+
+原 Transformers/TorchAO GPU 节点保留为回退，启动时添加
+`segmentation_executable:=seg.py` 即可使用。该回退才需要创建 `.venv-sam3`、安装
+`src/Instance_Seg/requirements.txt` 及匹配 CUDA 的 PyTorch；T600 上 A8W8 实测约
+3.5 秒/帧。
 
 ### 运行时算力监测
 
-节点在 `/sam3/performance` 发布标准 `diagnostic_msgs/DiagnosticArray`，包含预处理、模型
-前向、后处理、发布、总耗时、EMA 帧率及 CUDA 显存。查看单次诊断：
+节点在 `/sam3/performance` 发布标准 `diagnostic_msgs/DiagnosticArray`。Q4_0 提供图像编码、
+文本分割、发布、总耗时和 EMA 帧率；TorchAO 回退另外提供 CUDA 显存。查看单次诊断：
 
 ```bash
 ros2 topic echo /sam3/performance --once
-ros2 topic hz /sam3/segmentation
+ros2 topic hz /sam3/segmentation --qos-reliability reliable
 ```
 
-另开终端查看 GPU 核心占用、显存带宽、温度、频率和显存：
+Q4_0 默认使用 CPU，另开终端查看线程利用率和内存：
+
+```bash
+top -H -p "$(pgrep -n seg_q4_node)"
+```
+
+使用 TorchAO GPU 回退时查看 GPU 核心、显存、温度和频率：
 
 ```bash
 nvidia-smi dmon -s pucm -d 1
-```
-
-其中 `sm` 是 GPU 计算核心占用率，`mem` 是显存接口占用率，`fb` 是显存占用 MiB，
-`pclk/mclk` 是核心/显存频率。查看分割进程的 CPU 和内存占用：
-
-```bash
-top -p "$(pgrep -n -f '/ins_seg/seg.py')"
 ```
 
 ## 构建
