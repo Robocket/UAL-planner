@@ -35,6 +35,7 @@ __pycache__/
 .coverage
 htmlcov/
 .venv/
+.venv-*/
 venv/
 env/
 *.egg-info/
@@ -66,3 +67,17 @@ pswd.txt
 .DS_Store
 Thumbs.db
 /doc/
+
+# Learning experiments: keep data, checkpoints and outputs outside Git.
+/data/
+/datasets/
+/models/
+/checkpoints/
+/runs/
+/outputs/
+*.pt
+*.pth
+*.onnx
+*.engine
+*.ggml
+*.safetensors

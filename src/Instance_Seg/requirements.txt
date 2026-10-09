@@ -1,6 +1,0 @@
-torch>=2.8,<2.11
-torchvision>=0.23,<0.26
-modelscope>=1.30
-transformers>=5.0,<6
-accelerate>=1.0
-torchao>=0.16,<0.17

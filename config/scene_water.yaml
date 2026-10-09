@@ -1,32 +1,31 @@
-# Camera-only interface profile for the original Scene_Water rosbag.
-scene_water_image_adapter:
-  ros__parameters:
-    use_sim_time: false
-    input_topic: /left_camera/image/compressed
-    output_topic: /left_camera/image
-    output_encoding: bgr8
-    # The bag's CompressedImage header.frame_id is empty; preserve it.
-    frame_id: ""
-    qos_depth: 1
+# Data contract only. This is not a ROS node parameter file.
+dataset:
+  bag_path: /home/htfp/data/Scene_Water_20260805_013651
+  storage_identifier: mcap
+  recorded_ros_distro: jazzy
 
-sam3_segmentation:
-  ros__parameters:
-    use_sim_time: false
-    image_topic: /left_camera/image
+inputs:
+  image:
+    topic: /left_camera/image/compressed
+    message_type: sensor_msgs/msg/CompressedImage
+  odometry:
+    topic: /fsdk/aircraft_state
+    message_type: nav_msgs/msg/Odometry
 
-# Reserved input contract for the future visual distance estimator. No node
-# consumes this section yet; it only preserves the agreed topics/calibration.
-visual_distance_estimator:
-  ros__parameters:
-    use_sim_time: false
-    segmentation_topic: /sam3/segmentation
-    odometry_topic: /fsdk/aircraft_state
-    camera_info_topic: /left_camera/camera_info
-    use_camera_info_topic: false
-    image_width: 1280
-    image_height: 1024
-    # Temporary Hikvision intrinsics retained from the existing setup.
-    fx: 385.45
-    fy: 385.45
-    cx: -1.0
-    cy: -1.0
+camera:
+  image_width: 1280
+  image_height: 1024
+  calibration_status: historical_placeholder
+  fx: 385.45
+  fy: 385.45
+  # The old configuration selected the image center through sentinel values.
+  # Explicit principal-point values must be set after actual calibration.
+  cx: null
+  cy: null
+  principal_point_fallback: image_center
+
+task:
+  output_types: [bounding_box_2d, instance_mask]
+  target_definition_status: pending
+  # Candidate labels only; no model has been selected or trained.
+  candidate_targets: [ship, ship_deck, landing_platform]

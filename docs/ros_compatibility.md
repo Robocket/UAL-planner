@@ -1,25 +1,12 @@
-# Jazzy / Noetic 兼容约定
+# ROS 开发边界
 
-## 基线
+当前分支处于学习模型选型阶段，尚未实现 ROS 节点。
 
-- 新功能在 ROS 2 Jazzy 上开发和验证。
-- ROS 1 Noetic 作为后续部署目标，使用独立包装和 launch。
-- 不能只靠更换 launch 让 `rclcpp`/`rclpy` 节点直接在 Noetic 运行。
+- 算法层接收图像数组，返回目标框、实例掩膜和置信度，独立于 ROS。
+- 训练、评测与模型导出使用独立 Python 环境，不依赖 Jazzy 或 Noetic 的消息 API。
+- Jazzy 包装负责消息转换、时间戳、QoS、参数和发布。
+- Noetic 使用独立 `roscpp/rospy` 包装与 `.launch`，复用同一推理核心。
+- 图像、里程计和相机标定接口通过根目录 `config` 配置。
 
-## 分层要求
-
-后续视觉测距实现应拆成三层：
-
-| 层次 | 内容 | Jazzy / Noetic 复用方式 |
-| --- | --- | --- |
-| 算法核心 | 图像数组、实例观测、位姿和标定的数值计算 | 完全复用，不导入 ROS API |
-| ROS 包装 | 消息转换、订阅发布、时间和 QoS | `rclcpp/rclpy` 与 `roscpp/rospy` 分开 |
-| 启动配置 | 话题映射、设备参数、是否启用适配器 | Jazzy `.launch.py` 与 Noetic `.launch` 分开 |
-
-相机、分割、里程计和标定参数在不同包装中应保持相同名称与单位。ROS 消息类型、QoS、时间
-API 和发行版判断不得进入算法核心。
-
-## 当前状态
-
-本分支当前只有 Jazzy 包装；实例分割算法仍封装在现有 ROS 2 节点内。尚未实现的视觉测距核心
-必须按上述边界新建，避免后续复制两套算法。Noetic 包装完成前不提供不可运行的占位 launch。
+不同 launch 负责选择包装和设备配置；不能让 ROS 2 节点自动兼容 ROS 1。
+后续 ROS 包构建可使用 `scripts/build_jazzy.sh`；当前没有可构建的 ROS 包。

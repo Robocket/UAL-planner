@@ -1,103 +1,54 @@
-# UAL Planner：纯视觉分支
+# UAL Planner：学习方法试验分支
 
-`visual-only` 分支只保留相机实例分割链路，为后续使用“里程计 + 相机内参 + 目标实例尺寸变化”
-估计距离准备接口。当前版本**没有实现视觉测距算法**，也不会订阅或融合雷达点云。
+当前分支为 `learning-methods`，由 `visual-only` 创建，工作目录仍为
+`/home/htfp/UAL-planner`。原算法保存在 `visual-only` 分支中。
 
-## 当前范围
+本分支从学习型视觉感知的选型开始：使用相机图像识别降落目标，输出二维 bounding box
+和实例掩膜。船舶整体识别、甲板区域识别和区域是否满足降落条件是三个不同的任务。
 
-```text
-CompressedImage（可选） -> Image -> SAM3 实例分割 -> 分割消息/标注图
-                                      |
-                                      +-> 后续视觉测距（尚未实现）
-                                          预留输入：Odometry、相机内参
-```
+本次只完成分支准备与开源项目调研，尚未安装模型、实现推理节点或开始训练。
+原 SAM3/Q4_0/TorchAO 节点、分割消息、旧启动文件及 RViz 配置已从本分支移除。
+保留 `.gitignore` 和 Jazzy 隔离构建脚本作为开发基础；当前 `src` 中没有 ROS 包。
 
-工作空间现有两个 ROS 2 包：
+## 调研与试验方向
 
-- `ins_seg`：SAM3 Q4_0 C++ 节点、TorchAO Python 回退节点、压缩图像适配器及二维分割消息。
-- `ual_planner_bringup`：纯视觉配置、通用相机/Scene_Water launch 和 RViz 配置。
+完整调研见 [学习方法选型报告](docs/learning_methods_survey.md)，包括：
 
-雷达驱动、点云投影、三维实例图、降落评估和原自动降落包均未迁入本分支；完整历史仍保留在
-`master` 分支。
+- 公开预训练模型验证：YOLOE 实例分割。
+- 监督学习/迁移学习：RF-DETR 实例分割、RTMDet-Ins。
+- 降落区域语义理解参考：SafeLand、OpenLander。
+- 智驾系统中可复用的推理、检测和跟踪模块。
 
-## 构建
+这些是候选路线，尚未确定最终模型。实测结果应以 Scene_Water 和当前硬件为准。
 
-主开发环境为 Ubuntu 24.04 / ROS 2 Jazzy：
+## 数据与配置
 
-```bash
-./scripts/build_jazzy.sh --packages-select ins_seg ual_planner_bringup
-source install/jazzy/setup.bash
-```
+[config/scene_water.yaml](config/scene_water.yaml) 仅记录现有数据接口和相机标定占位值，
+不属于可直接传给 ROS 节点的参数文件：
 
-脚本会清除终端中继承的其他 ROS 发行版路径，并使用独立的 `build/jazzy`、
-`install/jazzy` 和 `log/jazzy` 目录。不要在同一个构建目录中混用 Humble、Jazzy 和 Noetic。
+- 图像：`/left_camera/image/compressed`，`sensor_msgs/msg/CompressedImage`。
+- 里程计：`/fsdk/aircraft_state`，`nav_msgs/msg/Odometry`，留待后续距离判断。
+- 相机：1280 × 1024；内参暂沿用历史配置，尚需正式标定。
 
-## 启动
+bag、训练数据、模型权重、虚拟环境和训练产物不提交到 Git。
 
-通用原始图像配置默认订阅 `/camera/color/image_raw`：
+## 后续开发约定
 
-```bash
-ros2 launch ual_planner_bringup camera.launch.py start_rviz:=true
-```
+先在独立 Python 环境中验证公开模型的离线推理，再按需要实现训练和 ROS 包装。
+实验环境不复用旧的 SAM3 虚拟环境或安装产物。
+现有未跟踪的 `build`、`install` 和虚拟环境目录未清理；其中旧节点产物不属于本分支的实现。
 
-也可直接使用统一入口并提供自己的相机配置：
+ROS 2 Jazzy 为开发基线；Noetic 通过独立包装和 launch 适配。
+边界见 [ROS 兼容约定](docs/ros_compatibility.md)。
 
-```bash
-ros2 launch ual_planner_bringup visual_only.launch.py \
-  camera_config:=/absolute/path/to/camera.yaml \
-  start_rviz:=true
-```
-
-Scene_Water 原始包中的海康相机发布压缩图像，专用 launch 会启动适配器：
+切回原纯视觉实现：
 
 ```bash
-ros2 launch ual_planner_bringup scene_water.launch.py start_rviz:=true
-ros2 bag play /home/htfp/data/Scene_Water_20260805_013651
+git switch visual-only
 ```
 
-该链路只使用：
-
-- `/left_camera/image/compressed` → `/left_camera/image`
-- `/left_camera/image` → `/sam3/segmentation`
-- `/left_camera/image` → `/sam3/annotated_image`
-
-`/fsdk/aircraft_state` 及相机内参已写入 `config/scene_water.yaml` 的
-`visual_distance_estimator` 预留配置，但当前没有节点消费这些参数。
-
-## 实例分割模型
-
-默认后端是 `seg_q4_node`，使用公开的完整文本提示版 `sam3-q4_0.ggml`。首次运行会自动下载到
-`~/.cache/ual_planner/models/sam3-q4_0.ggml` 并校验大小与 SHA-256，无需 Hugging Face 登录。
-模型地址、缓存路径、CPU 线程数、阈值、提示词和所有输出话题统一配置在
-`config/common.yaml`。
-
-Q4_0 为 CPU 后端，当前设备实测约几十秒一帧，适合验证但不满足实时性。已安装匹配 CUDA 的
-PyTorch 时，可显式切换现有 TorchAO 回退后端：
+切回本分支：
 
 ```bash
-ros2 launch ual_planner_bringup camera.launch.py \
-  segmentation_executable:=seg.py
+git switch learning-methods
 ```
-
-运行时可监测：
-
-```bash
-ros2 topic echo /sam3/performance --once
-ros2 topic hz /sam3/segmentation --qos-reliability reliable
-top -H -p "$(pgrep -n seg_q4_node)"
-```
-
-## 后续视觉测距接口
-
-设备配置中只预留以下信息，没有自行补写算法或输出定义：
-
-- `segmentation_topic`：带时间戳的实例掩膜与实例编号；
-- `odometry_topic`：相机/载体运动信息；
-- `camera_info_topic`：优先使用标准 `sensor_msgs/CameraInfo` 的接口名；
-- `image_width`、`image_height`、`fx`、`fy`、`cx`、`cy`：无 CameraInfo 时的标定回退值。
-
-Scene_Water 暂沿用原来的海康相机内参；正式实现测距前应重新标定。算法、状态缓存、尺度约束、
-距离输出消息和误差处理均留待后续明确后实现。
-
-Jazzy/Noetic 的代码边界见 [`docs/ros_compatibility.md`](docs/ros_compatibility.md)，本次迁移清单见
-[`docs/visual_only_migration.md`](docs/visual_only_migration.md)。
