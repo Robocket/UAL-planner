@@ -8,9 +8,22 @@ inputs:
   image:
     topic: /left_camera/image/compressed
     message_type: sensor_msgs/msg/CompressedImage
+auxiliary_inputs:
+  # Optional world/scale assistance, NOT an RGB-only reconstruction model input.
   odometry:
     topic: /fsdk/aircraft_state
     message_type: nav_msgs/msg/Odometry
+    enabled: false
+    intended_use: scale_and_world_alignment
+    source_provenance_status: pending_verification
+
+offline_evaluation_reference:
+  # Never used for online inference, depth scaling or geometry generation.
+  lidar:
+    topic: /livox/lidar
+    message_type: livox_avia_driver/msg/CustomMsg
+    enabled: false
+excluded_online_sensor_topics: [/livox/lidar, /livox/imu]
 
 camera:
   image_width: 1280
@@ -24,8 +37,52 @@ camera:
   cy: null
   principal_point_fallback: image_center
 
+extrinsics:
+  camera_optical_to_odometry_child_status: pending_axis_and_calibration_verification
+
+coordinates:
+  # metadata.yaml records topic types, not message header frame IDs.
+  camera_frame_id: ''  # Sampled compressed-image headers are empty; not a valid geometry frame.
+  camera_optical_frame_id: null
+  odometry_child_frame_id: null
+  world_frame_id: null
+  downstream_geometry_frame: world
+  model_output_frame_status: reconstruction_local_pending_verification
+  metric_scale_verified: false
+  world_alignment_verified: false
+  publish_world_geometry_when_unverified: false
+  verification_status: sampled_image_header_empty_transforms_pending
+
+synchronization:
+  image_timestamp_status: sampled_header_bag_offset_about_80_minutes_needs_audit
+  optional_odometry_max_time_offset_s: null
+
+reconstruction_trial:
+  # Offline experiment uses the separate root-level trial configuration.
+  status: offline_scene_validation_completed_not_realtime
+  suggested_model_id: naver/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric
+  model_revision: f5209afc300cec36239a7ac992263f36847bbba0
+  experiment_config: config/maritime_reconstruction_trial.yaml
+  window_frame_candidates: [2]
+  process_resolution_candidates: [384, 512, 224]
+  precision_candidates: [float16_amp]
+  metric_depth_capability: learned_metric_prior_not_validated_in_scene
+  target_realtime_fps: null
+  global_mapping_status: not_implemented
+  dynamic_target_handling_status: not_implemented
+
 task:
-  output_types: [bounding_box_2d, instance_mask]
-  target_definition_status: pending
-  # Candidate labels only; no model has been selected or trained.
-  candidate_targets: [ship, ship_deck, landing_platform]
+  modality: monocular_rgb
+  model_input_sources: [image]
+  objective: model_driven_online_3d_reconstruction
+  output_types: [depth, local_pointcloud, bounding_box_2d, instance_mask]
+  future_derived_output_types: [bounding_box_3d]
+  primary_targets: [ship]
+  deferred_targets: [vehicle]
+  vehicle_data_status: not_collected
+  # Deck/platform definitions and their labels still need to be agreed.
+  landing_surface_candidates: [ship_deck, landing_platform]
+  landing_surface_definition_status: pending
+  model_selection_status: mast3r_for_offline_scene_validation_only
+  scene_water_3d_annotation_status: pending_dataset_audit
+  scene_water_instance_annotation_status: pending_dataset_audit

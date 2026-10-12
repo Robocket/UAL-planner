@@ -1,0 +1,33 @@
+# Offline RGB-only scene validation, not ROS parameters or a landing controller.
+model:
+  source_dir: models/mast3r
+  source_revision: f5209afc300cec36239a7ac992263f36847bbba0
+  checkpoint: checkpoints/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
+  checkpoint_sha256: e28f91b488554653e2b46ddae9c78c1143e0bcb2e27d3e26cdb0b717f1568eb2
+  checkpoint_url: https://download.europe.naverlabs.com/ComputerVision/MASt3R/MASt3R_ViTLarge_BaseDecoder_512_catmlpdpt_metric.pth
+  device: cuda
+  parameter_precision: float16_core_float32_heads
+benchmark:
+  resolutions: [384, 512, 224]
+  precision: float16_amp  # Autocast in addition to model.parameter_precision; not quantization.
+  autocast_weight_cache: false  # Avoid retaining an additional FP16 copy of FP32 weights.
+  warmup_runs: 1
+  measured_runs: 3
+  output_dir: outputs/maritime_mast3r_fp16core
+  confidence_threshold: 3.0
+  positive_z_only: true
+  preview_max_points: 6000
+datasets:
+  mtred:
+    provenance: https://github.com/RuiYiYong/MTReD/tree/110f4057acd055a5855d3891a6a9bb731856474f/Dataset/03
+    images: [datasets/mtred_ship/scene03_0000.png, datasets/mtred_ship/scene03_0061.png]
+    description: Aerial large cargo ship; no metric geometry ground truth.
+  scene_water:
+    images: [datasets/scene_water_audit/frame_004.png, datasets/scene_water_audit/frame_005.png]
+    description: Local industrial-camera image pair; no lidar or odometry input.
+extraction:
+  bag_path: /home/htfp/data/Scene_Water_20260805_013651
+  storage_id: mcap
+  image_topic: /left_camera/image/compressed
+  offsets_s: [60.0, 120.0, 180.0, 240.0, 300.0, 300.5, 360.0, 420.0, 480.0, 540.0, 600.0]
+  output_dir: datasets/scene_water_audit

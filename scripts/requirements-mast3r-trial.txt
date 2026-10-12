@@ -1,0 +1,13 @@
+# Install torch/torchvision from the cu124 index first (see trial report).
+numpy==1.26.4
+opencv-python-headless==4.11.0.86
+huggingface-hub==0.28.1
+einops==0.8.1
+roma==1.5.0
+scipy==1.15.3
+scikit-learn==1.6.1
+matplotlib==3.10.1
+trimesh==4.6.8
+Pillow==11.1.0
+tqdm==4.67.1
+PyYAML==6.0.2
