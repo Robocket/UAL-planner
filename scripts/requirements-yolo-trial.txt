@@ -1,0 +1,7 @@
+# CUDA torch 2.5.1+cu124 / torchvision 0.20.1+cu124 are reused read-only locally.
+ultralytics==8.3.226
+numpy==1.26.4
+opencv-python==4.11.0.86
+psutil==7.1.0
+polars==1.35.1
+ultralytics-thop==2.0.18

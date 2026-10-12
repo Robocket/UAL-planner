@@ -35,6 +35,7 @@ __pycache__/
 .coverage
 htmlcov/
 .venv/
+.venv-*/
 venv/
 env/
 *.egg-info/
@@ -66,3 +67,10 @@ pswd.txt
 .DS_Store
 Thumbs.db
 /doc/
+
+# Local experiments retained when switching branches; never commit model/data blobs.
+/models/
+/checkpoints/
+/datasets/
+/outputs/
+/runs/

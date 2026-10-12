@@ -3,6 +3,20 @@
 `visual-only` 分支只保留相机实例分割链路，为后续使用“里程计 + 相机内参 + 目标实例尺寸变化”
 估计距离准备接口。当前版本**没有实现视觉测距算法**，也不会订阅或融合雷达点云。
 
+2026-10-11 已从 `learning-methods` 切回本分支，继续调研轻量实例分割与传统视觉几何的组合。
+建议第一基线为 **YOLO11n-seg + KLT 光流 + 有条件的稀疏几何**，
+详细比较、尺度/运动船舶限制和验证顺序见 [轻量混合方案调研](docs/lightweight_hybrid_survey.md)。
+已完成 YOLO11n-seg 独立离线测试：本机 FP32 推理约 6–11 ms/帧，
+但默认阈值下 43 张 Scene_Water 抽样图像均无 `boat` 输出，低阈值仅出现车辆误判。
+公开货船对照能够检出，说明仍需解决俯视场景适配，不能直接接入跟踪/测距。
+配置、复现方法和测量范围见 [YOLO 场景试验报告](docs/yolo_scene_trial.md)。
+未替换下述 SAM3 节点或启动默认值；YOLO 目前只是离线试验，不是 ROS 后端。
+
+2026-10-12 已继续验证公开 SeaDronesSee YOLO11n + GrabCut/MobileSAM。
+MobileSAM 组合处理约 145 ms/帧，比本次 GrabCut 配置（约 681 ms）快，但局部框与车辆误检仍未解决，
+不能直接使用掩膜面积进行测距。见 [公开权重核查](docs/maritime_weights_audit.md) 和
+[组合实测报告](docs/ship_hybrid_trial.md)。两种组合均只用于离线实验，ROS 默认仍不变。
+
 ## 当前范围
 
 ```text
