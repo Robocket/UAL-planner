@@ -1,6 +1,6 @@
 # 项目状态与跨机交接
 
-更新日期：2026-10-13（Asia/Shanghai）。维护分支：`visual-only`。
+更新日期：2026-10-15（Asia/Shanghai）。维护分支：`visual-only`。
 这是项目状态快照，不是完整聊天记录；开始工作先核查实际分支、提交和本机环境。
 
 ## 接手时先看
@@ -10,20 +10,23 @@
 - 当前保留 SAM3 Q4_0 与 Python 回退的 ROS 链路；默认模型和节点未替换。
 - 下一个优先问题是整船定位、车辆误检和一船多框，不是继续叠加测距。
 - 用户已允许自动海事检测框补掩膜的离线实验；没有授权本地训练、自动替换 ROS 后端或新增降落算法。
-- 最新：2026-10-13 用户选择清理方案 1，已删除离线试验权重、MASt3R 第三方源码、脚本、配置、
+- 清理记录：2026-10-13 用户选择清理方案 1，已删除离线试验权重、MASt3R 第三方源码、脚本、配置、
   测试、报告及调研文档；先前全部输出也已清空。删除内容移入系统回收站，未清空前可恢复。
   下列数值仅为失败实验的历史摘要，不表示原始产物、相关代码或运行配置仍在工作区可用。
+- 最新核查（2026-10-15）：清理已包含在 `25336c1`，接手时工作区干净；本次只修订交接状态并创建
+  本地文档提交，不推送、不启动新实验。`outputs/`、`checkpoints/`、`models/`、`tests/` 均为空。
 
 ## 分支与版本
 
 | 分支 | 用途 | 已有实现/状态 | 最近算法或试验提交 |
 | --- | --- | --- | --- |
 | `master` | 历史相机 + 雷达融合路线 | 保留原节点和量化模型相关实现；本轮未改、未重验 | `bbe2261` |
-| `visual-only` | 当前轻量纯视觉路线 | 保留相机/SAM3 ROS 链路；离线实验内容已从工作区清理，尚未提交 | 历史试验 `02e9405` |
+| `visual-only` | 当前轻量纯视觉路线 | 保留相机/SAM3 ROS 链路；离线实验清理已提交 | 清理 `25336c1`；历史试验 `02e9405` |
 | `learning-methods` | 模型驱动重建实验 | MASt3R 两帧局部点图/点云，不是在线 SLAM；该分支当前没有 ROS 包 | `8f577bd` |
 
-2026-10-13 核查时，三分支与本地 `origin/*` 跟踪引用一致；`visual-only` 已有交接提交 `1343483`。
-未在本轮执行 fetch，这不是实时网络查询。本轮离线试验清理及文档更新尚未提交/推送。
+2026-10-15 接手核查时，三分支与本地 `origin/*` 跟踪引用一致；`visual-only` 为 `25336c1`（更新测试结果），
+已包含离线试验清理及此前交接变更。未执行 fetch/push，这不是实时远端查询，不据此承诺另一台电脑已同步。
+本次交接修订单独创建本地提交、不推送；完成后的提交号用 `git log -1 --oneline` 查看。
 `learning-methods` 的 Git 文件未变，但其共用本机 MASt3R 源码/权重已移入回收站，不能直接运行旧试验。
 以后确认同步状态应先核对 Git，不能照抄本段作为实时状态。
 
@@ -76,6 +79,7 @@ git show learning-methods:docs/learning_methods_survey.md
   [scene_water.yaml](../config/scene_water.yaml)；仅保留 ROS 共用/相机/Scene_Water 配置。
 - RViz：`rviz/visual_only.rviz`、`rviz/scene_water.rviz`；跨 ROS 边界见 [兼容约定](ros_compatibility.md)。
 - 离线试验测试文件及缓存已清理，`tests/` 当前为空，不能再宣称本分支现有 17 项测试。
+  空目录不被 Git 跟踪，新电脑检出后可能没有 `tests/`、`models/`、`checkpoints/` 或 `outputs/` 目录。
 
 ## 本机条件和不随 Git 同步的资源
 
@@ -99,7 +103,7 @@ torchvision 0.20.1+cu124、Ultralytics 8.3.226；这是历史实验环境记录�
   `ship_hybrid_trial_fp32`、`ship_hybrid_trial_fp32_incomplete_json`、`maritime_mast3r`、
   `maritime_mast3r_nocache`、`maritime_mast3r_fp16core`、`dataset_semantic_trial_20261013`。
   共 1876 个文件、约 338 MiB；包含失败记录，原路径不再存在，回收站未清空，可在被清空前恢复。
-  本轮继续清理对应报告和配置，仅在交接文件保留简要失败结论；不因此重新运行模型。
+  对应报告和配置也已在此前清理，仅在交接文件保留简要失败结论；本次不重新运行模型。
 - 论文 `doc/` 和外部附件不随 Git 自动同步；涉及论文约束时需确认本机可访问文件。
 
 ## 未解决问题与下一步
@@ -133,9 +137,16 @@ torchvision 0.20.1+cu124、Ultralytics 8.3.226；这是历史实验环境记录�
   `models/mast3r`（约 12 MiB）、20 个试验脚本/依赖清单/配置/测试/报告文件，以及
   `scripts/__pycache__`、`tests/__pycache__`。`checkpoints/`、`models/`、`outputs/`、`tests/` 保留为空目录。
   README 移除失效入口，决策追加 D10，历史失败摘要保留；SAM3/ROS、设备配置/RViz、数据、bag、虚拟环境、
-  其他分支和 stash 未删除或改动。删除及交接改动未提交/推送。
-  本轮验证为剩余 Python 语法、构建脚本语法、文档链接/删除范围及 `git diff --check`；
-  离线测试已清理，unittest 发现 0 项，不算算法验证；未构建 ROS、未跑 GPU/在线链路。
+  其他分支和 stash 未删除或改动。当时删除及交接改动未提交；2026-10-15 接手已见于 `25336c1`。
+  当时已检查删除范围、构建脚本语法及 `git diff --check`，unittest 发现 0 项，不算算法验证；
+  剩余 Python 语法和文档链接在下述 2026-10-15 交接核查中补验，未构建 ROS、未跑 GPU/在线链路。
+- 2026-10-15 交接核查：电脑 `htfp-crl`，`visual-only`，Python 3.12.3；确认清理提交 `25336c1`、
+  四个实验目录为空、数据集及三个实验虚拟环境仍保留。比较 `1343483..25336c1`，`src/`、三个 ROS 配置、
+  RViz、launch 和 Jazzy 构建脚本无改动；`master`、`learning-methods` 与备份 stash 引用未变。
+  本次修正过期的“尚未提交”描述，更新日期及跨机提示；剩余 Python 语法、Markdown 本地链接、
+  `bash -n scripts/build_jazzy.sh` 和 `git diff --check` 检查通过。
+  `python3 -m unittest discover -s tests -v` 发现 0 项，不等于通过算法测试；未重建 ROS、未运行模型或下载依赖。
+  仅将本次交接修订提交到当前分支，不推送、不修改其他分支。
 - 后续每次实质工作补充：日期、实际分支/电脑、变更、证据/测试、失败/未验证项、下一步与同步状态。
 
 ## 换电脑时的最短流程
