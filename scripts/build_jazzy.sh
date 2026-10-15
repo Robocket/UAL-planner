@@ -11,7 +11,7 @@ if [[ ! -r "${JAZZY_SETUP}" ]]; then
 fi
 
 # Start a non-interactive shell without inherited ROS/CMake/Python prefixes.
-# This prevents an earlier Noetic/Humble/Jazzy source command from creating a
+# This prevents inherited paths from other ROS environments from creating a
 # mixed CMake cache. HOME and other user settings are inherited unchanged.
 exec env \
     -u AMENT_PREFIX_PATH \

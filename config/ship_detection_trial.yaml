@@ -1,0 +1,57 @@
+# Offline detection only. No training, ROS backend change, tracking or ranging.
+weights_dir: checkpoints/ship_detection_20261015
+output_dir: outputs/ship_detection_20261015
+device: '0'
+half: false
+cpu_threads: 4
+warmup: 3
+iou: 0.7
+max_det: 300
+agnostic_nms: false
+thresholds: [0.25, 0.10]
+overlay_jpeg_quality: 90
+contact_sheet:
+  columns: 4
+  tile_width: 400
+  tile_height: 350
+  indices: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 43, 44, 45, 46, 47]
+inputs:
+  manifests:
+    - datasets/scene_water_audit/manifest.json
+    - datasets/scene_water_yolo_clips/manifest.json
+  controls:
+    - datasets/mtred_ship/0000.png
+    - datasets/mtred_ship/0061.png
+    - datasets/mtred_ship/scene03_0000.png
+    - datasets/mtred_ship/scene03_0061.png
+    - datasets/airbus_control/test_image_1.jpg
+models:
+  - id: dota_yolo11n_obb
+    file: yolo11n-obb.pt
+    task: obb
+    target_classes: [ship]
+    image_sizes: [640, 1024]
+    url: https://github.com/ultralytics/assets/releases/download/v8.3.0/yolo11n-obb.pt
+  - id: yomod_yolo11s
+    file: ships_yolo11s.pt
+    task: detect
+    target_classes: [ship, warship]
+    image_sizes: [640, 800]
+    archive_member: yolo-mod-models/models/shiprsimagenet/yolo11s/ships_yolo11s.pt
+  - id: yomod_yolo11l
+    file: ships_yolo11l.pt
+    task: detect
+    target_classes: [ship, warship]
+    image_sizes: [640, 800]
+    archive_member: yolo-mod-models/models/shiprsimagenet/yolo11l/ships_yolo11l.pt
+archive:
+  record_url: https://zenodo.org/api/records/19534383
+  file: yolo-mod-models.zip
+  metadata_members:
+    - yolo-mod-models/models/shiprsimagenet/yolo11s/metadata.json
+    - yolo-mod-models/models/shiprsimagenet/yolo11l/metadata.json
+    - yolo-mod-models/docs/model_overview.md
+    - yolo-mod-models/examples/inference_example.md
+    - yolo-mod-models/LICENSE.txt
+    - yolo-mod-models/CITATION.cff
+    - yolo-mod-models/README.md

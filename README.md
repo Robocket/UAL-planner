@@ -2,15 +2,21 @@
 
 `visual-only` 分支只保留相机实例分割链路，为后续使用“里程计 + 相机内参 + 目标实例尺寸变化”
 估计距离准备接口。当前版本**没有实现视觉测距算法**，也不会订阅或融合雷达点云。
+后续开发、测试和部署统一使用 **ROS 2 Jazzy**，不再考虑 ROS 1/Noetic 迁移。
 
 跨电脑或新对话接手时，先读 [开发与交接约定](AGENTS.md)、[当前项目状态](docs/PROJECT_STATE.md)
 和 [决策记录](docs/DECISIONS.md)，再核查实际分支及本机环境。
 交接入口当前在 `visual-only` 维护；代码同步不等于聊天、模型、数据或虚拟环境同步。
+当前模型与数据集统一登记在 [待测试目录](docs/待测试/README.md)，只列资源和状态，不自动下载或训练。
 
 2026-10-13 按用户确认的方案 1，清理此前离线试验的输出、模型权重、MASt3R 第三方源码、
 试验脚本、配置、测试及相关报告/调研文档。现有 SAM3/ROS 节点、运行配置与 RViz 保留不变。
 数据集、原始 bag 和虚拟环境未删除；已清理内容移入系统回收站，未清空前可恢复。
 既有失败结论的简要记录保留在交接文件中，不再提供已删除试验的运行入口。
+
+2026-10-15 按新要求完成 YOLO11n-OBB 与 YOLO-MOD 船舶 s/l 的[离线定位对照](docs/ship_detection_trial.md)。
+用户验收结论为 **YOLO11n-OBB 合格、YOLO-MOD s/l 不合格**；不因此自动替换以下 SAM3/ROS 默认链路。
+后续测试统一追加到上述报告，不再主动进行人工视觉核查；保留原始统计与可视化供查看。
 
 ## 当前范围
 
@@ -31,7 +37,7 @@ CompressedImage（可选） -> Image -> SAM3 实例分割 -> 分割消息/标注
 
 ## 构建
 
-主开发环境为 Ubuntu 24.04 / ROS 2 Jazzy：
+唯一支持的开发基线为 Ubuntu 24.04 / ROS 2 Jazzy：
 
 ```bash
 ./scripts/build_jazzy.sh --packages-select ins_seg ual_planner_bringup
@@ -39,7 +45,7 @@ source install/jazzy/setup.bash
 ```
 
 脚本会清除终端中继承的其他 ROS 发行版路径，并使用独立的 `build/jazzy`、
-`install/jazzy` 和 `log/jazzy` 目录。不要在同一个构建目录中混用 Humble、Jazzy 和 Noetic。
+`install/jazzy` 和 `log/jazzy` 目录。不要混入其他 ROS 发行版的环境或构建缓存。
 
 ## 启动
 
@@ -108,5 +114,5 @@ top -H -p "$(pgrep -n seg_q4_node)"
 Scene_Water 暂沿用原来的海康相机内参；正式实现测距前应重新标定。算法、状态缓存、尺度约束、
 距离输出消息和误差处理均留待后续明确后实现。
 
-Jazzy/Noetic 的代码边界见 [`docs/ros_compatibility.md`](docs/ros_compatibility.md)，本次迁移清单见
+开发约定见 [`docs/jazzy_development.md`](docs/jazzy_development.md)，纯视觉路线迁移清单见
 [`docs/visual_only_migration.md`](docs/visual_only_migration.md)。

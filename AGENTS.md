@@ -27,8 +27,8 @@
 
 ## 代码、配置与坐标
 
-- 主开发基线为 ROS 2 Jazzy，Noetic 是后续部署目标。算法核心不依赖 ROS API，
-  ROS 1/2 消息包装和 launch 分开；不能只换 launch 就承诺跨 ROS 主版本运行。
+- 后续开发、测试和部署只面向 ROS 2 Jazzy，不再规划 ROS 1/Noetic 迁移，也不新增跨 ROS 版本兼容层。
+  算法核心与 ROS 接口仍按测试需要分离；节点统一使用 `rclcpp/rclpy`、`ament_cmake/colcon` 和 ROS 2 launch。
 - 节点放在 `src/` 下并列，不恢复 `planner/` 或 `simulator/` 一级目录。
   设备/算法参数集中在根目录 `config/`，RViz 配置在根目录 `rviz/`；保留必要的模型输入几何约束并明确校验。
 - 已知 Scene_Water 图像输入为 `/left_camera/image/compressed`；在线适配后为 `/left_camera/image`。
@@ -42,12 +42,16 @@
 - 模型、bag、数据、输出、虚拟环境和凭据不提交 Git；不整体同步 `.codex` 或虚拟环境作为项目交接方式。
 - 先核查当前电脑 Python、ROS、GPU、依赖和输入路径，不把另一台电脑的环境当作已经可用。
   本机 `.venv-yolo` 通过绝对路径只读复用 `.venv-mast3r` 的基础依赖，不能直接拷贝后保证运行。
-- 不混用 Humble/Jazzy/Noetic 的构建路径；Jazzy 使用 `scripts/build_jazzy.sh` 的隔离目录。
+- 仅使用 Jazzy 环境构建；不要混入其他 ROS 发行版的路径。使用 `scripts/build_jazzy.sh` 的隔离目录。
 - 离线脚本拒绝覆盖输出；重复实验使用新输出目录，不删除旧结果来制造成功状态。
 - 轻量离线代码变更至少运行可用环境的 `python -m unittest discover -s tests -v`、语法检查和 `git diff --check`。
   缺依赖或数据时说明未验证，不自行扩张安装范围。
 - 性能报告注明硬件、配置、样本和计时口径；区分预测耗时与含解码/可视化/ROS 的端到端耗时。
   没有真值时不报告精度，PyTorch allocated/reserved 不是全部 GPU 显存。
+- 后续测试记录统一追加到 `docs/ship_detection_trial.md`，不再按轮次另建报告；保留既有结果和更正历史。
+  明确区分运行统计、历史观察和用户验收；当前用户验收为 YOLO11n-OBB 合格、YOLO-MOD s/l 不合格。
+- 后续不主动进行人工视觉核查，不逐图评判或新增视觉核查章节；可保留可视化输出供用户自行查看。
+  代码/格式/输出完整性与性能检查仍正常执行；除非用户重新要求，不以人工看图替用户作质量验收。
 
 ## 结束任务与跨机交接
 
