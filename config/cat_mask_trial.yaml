@@ -1,0 +1,27 @@
+# Offline instance masks only. No training, ROS replacement, or manual review.
+experiment_date: '2026-10-19'
+output_dir: outputs/cat_mask_isaid_20261019_run02
+sample_config: config/ship_detection_trial.yaml
+source_dir: models/CATNet
+source_commit: 64775d0885995f99f0547161abef6032db1b65aa
+model_config: configs/isaid/cat_mask_rcnn_r50_3x_isaid.py
+weight:
+  path: checkpoints/cat_isaid_20261019/checkpoints/cat_mask_rcnn_r50_3x_isaid-384df911.pth
+  url: https://huggingface.co/yeliudev/CATNet/resolve/7d69b41903a8b47837c9759c042c63bbee5f75ca/checkpoints/cat_mask_rcnn_r50_3x_isaid-384df911.pth
+  bytes: 219657199
+  sha256: 384df911651f825b3eb26a790b7b93d20ef28d0e7bcb4c28e720a3f6fb5d76ab
+device: cuda:0
+cpu_threads: 4
+warmup: 3
+target_classes: [ship]
+# Author's aspect-preserving test resize; [max width, max height].
+resize: [1400, 800]
+thresholds: [0.25, 0.10]
+model_score_threshold: 0.05
+nms:
+  type: soft_nms
+  iou_threshold: 0.5
+max_per_img: 1000
+mask_threshold: 0.5
+overlay_alpha: 0.45
+overlay_jpeg_quality: 90

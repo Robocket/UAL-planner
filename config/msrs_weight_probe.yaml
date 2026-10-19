@@ -1,0 +1,25 @@
+# Loading preflight only; no training, architecture substitution, or ROS changes.
+experiment_date: '2026-10-19'
+output_dir: outputs/msrs_weight_probe_20261019
+weights_dir: models/MSRS
+sample_config: config/ship_detection_trial.yaml
+release_api: https://api.github.com/repos/loges00/MSRS-DETR/releases/tags/weights
+repository_commit: 1fdef43e7834397f2f296f41a23852d79eec14d1
+# Sizes and SHA-256 digests checked against the publisher's release API.
+models:
+  - file: MSRS-DETR_HRSC2016_epochs500_best.pt
+    role: requested_msrs
+    bytes: 58037441
+    sha256: 122b0a4f12853682b96dd7d62e110fce7bc64a6de342bcff375c52d9b64305b1
+  - file: MSRS-DETR_ShipRSImageNet_epochs500_best.pt
+    role: requested_msrs
+    bytes: 58009665
+    sha256: 9eb236159cc2124de6db47b0746485b22ae8c6e01c4587c0fda8bfafe7045eb3
+  - file: RT-DETR_HRSC2016_epochs500_best.pt
+    role: supplied_baseline_preflight_only
+    bytes: 80715448
+    sha256: f2f114bebc94aaaaf478a0cd31622fb39204d03553d801715eea24f4fce26870
+  - file: RT-DETR_ShipRSImageNet_epochs500_best.pt
+    role: supplied_baseline_preflight_only
+    bytes: 80725432
+    sha256: 5f0fbeb33e17e1e3bfeea855ff23baeb955debe9c60cc38fed05165f54f29df2

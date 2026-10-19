@@ -1,0 +1,12 @@
+# Isolated Python 3.10 environment only. Torch/MMCV use CUDA 11.8 wheels.
+numpy==1.26.4
+setuptools==80.10.2
+yapf==0.40.1
+torch==2.0.1+cu118
+torchvision==0.15.2+cu118
+mmcv==2.0.0
+mmengine==0.7.4
+mmdet==3.0.0
+nncore==0.3.6
+opencv-python==4.11.0.86
+PyYAML==6.0.2

@@ -1,0 +1,34 @@
+# User-provided exported state_dict; offline image inference, never training.
+experiment_date: '2026-10-19'
+output_dir: outputs/marisat_sam3_20261019_run04
+sample_config: config/ship_detection_trial.yaml
+unpacked_checkpoint: models/MariSat/sam3_semantic_best
+prepared_checkpoint: checkpoints/marisat_sam3_20261019/sam3_semantic_best_repacked.pt
+source_dir: models/ultralytics_marisat
+source_commit: fbaaba3b7a386d348376b6dd2578f145a1e55714
+clip_dir: models/CLIP_marisat
+clip_commit: 7ffa84b3bfa40c42ecc1c77147a855e69cb2dd40
+author_commit: a9a35dd74edb3fc66ce2f12f8edbc2b8b5e65d7c
+device: '0'
+half: true
+autocast: true
+cpu_threads: 4
+warmup: 1
+# Geometry used by the author: 72x72 ViT feature grid, patch size 14.
+image_size: 1008
+thresholds: [0.25, 0.10]
+mask_probability_threshold: 0.5
+max_instances_per_image: 200
+overlay_alpha: 0.45
+overlay_jpeg_quality: 90
+# Preserve the eight prompt strings from the author's finetuningSAM3 notebook.
+classes:
+  - {name: sailboat, prompt: 'aerial view sailboat with mast on water'}
+  - {name: yacht, prompt: 'aerial view luxury motor yacht on water'}
+  - {name: jet_ski, prompt: 'aerial view jet ski personal watercraft on water'}
+  - {name: fishing_boat, prompt: 'aerial view fishing boat trawler commercial harbor on water'}
+  - {name: cruise_ship, prompt: 'aerial view large white cruise ship passenger vessel port'}
+  - {name: military_ship, prompt: 'aerial view grey military warship frigate navy vessel'}
+  - {name: tugboat, prompt: 'aerial view tugboat short wide red orange hull port'}
+  - {name: cargo_ship, prompt: 'aerial view cargo ship bulk carrier flat deck freight port'}
+large_ship_classes: [cruise_ship, military_ship, cargo_ship]
