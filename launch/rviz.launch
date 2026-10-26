@@ -1,5 +1,5 @@
 <launch>
-  <arg name="rviz_config" default="$(find ual_planner_bringup)/rviz/ual_planner.rviz" />
+  <arg name="rviz_config" default="$(dirname)/../rviz/ual_planner.rviz" />
   <node pkg="landing_evaluator" type="landing_rviz_visualizer.py"
         name="landing_rviz_visualizer" output="screen" />
   <node pkg="rviz" type="rviz" name="ual_planner_rviz" output="screen"

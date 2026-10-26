@@ -30,32 +30,33 @@ source devel/setup.bash
 
 ## 启动
 
+从仓库根目录使用 Noetic 自带的 `--no-summary` 关闭 `roslaunch` 的参数和节点清单；节点日志仍正常显示。
+
 ```bash
 # D1
-roslaunch ual_planner_bringup d1.launch
+roslaunch --no-summary launch/d1.launch
 
 # Livox Avia
-roslaunch ual_planner_bringup avia.launch
+roslaunch --no-summary launch/avia.launch
 
 # 半实物仿真
-roslaunch ual_planner_bringup hil_sim.launch
+roslaunch --no-summary launch/hil_sim.launch
 
 # 原 Scene_Water ROS 1 bag 接口
-roslaunch ual_planner_bringup scene_water.launch start_rviz:=true
+roslaunch --no-summary launch/scene_water.launch start_rviz:=true
 ```
 
 统一入口支持按需关闭模块：
 
 ```bash
-roslaunch ual_planner_bringup ual_planner.launch \
-  sensor_config:=$(rospack find ual_planner_bringup)/config/d1.yaml \
+roslaunch --no-summary launch/ual_planner.launch \
   start_segmentation:=false start_rviz:=true
 ```
 
 默认实例分割后端为 `seg_q4_node`。需要 Python/PyTorch 后端时：
 
 ```bash
-roslaunch ual_planner_bringup d1.launch \
+roslaunch --no-summary launch/d1.launch \
   segmentation_executable:=seg.py
 ```
 
@@ -65,7 +66,7 @@ roslaunch ual_planner_bringup d1.launch \
 - `landing_evaluator`：C++ 降落面核心、ROS 节点、状态可视化和仿真姿态适配。
 - `auto_landing`：候选降落区域评估和降落点追踪。
 - `livox_avia_driver`：Livox `CustomMsg` 定义及 `PointCloud2` 转换。
-- `ual_planner_bringup`：统一配置、设备预设、launch 和 RViz 配置。
+- 根目录 `config/`、`launch/`、`rviz/`：设备预设、统一启动和可视化配置。
 - `ual_ros1`：Python 节点共用的轻量 rospy 接口层。
 
 ## 参数约定

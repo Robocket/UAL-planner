@@ -47,6 +47,10 @@ class InstanceGraph(Node):
             subscriber_qos_depth,
         )
         self.log_timer = self.create_timer(log_period_sec, self.log_status)
+        frame_description = self.expected_world_frame or '首个有效消息的坐标系'
+        self.get_logger().info(
+            f'实例图节点已启动: topic={topic}, world_frame={frame_description}'
+        )
 
     @staticmethod
     def _euclidean_distance(point_a, point_b):
@@ -151,7 +155,9 @@ class InstanceGraph(Node):
             self.get_logger().error(f'处理实例消息失败: {exc}')
 
     def log_status(self):
-        self.get_logger().info(f'当前存储实例数: {len(self.instance_dict)}')
+        # Periodic state is useful in rosconsole DEBUG logs, but an empty graph
+        # is the normal startup state and should not spam the terminal.
+        self.get_logger().debug(f'当前存储实例数: {len(self.instance_dict)}')
 
 
 def main(args=None):

@@ -27,7 +27,7 @@ landing_evaluator:
   imu/enabled: true
   imu/required: true
   imu/topic: /landing/sim_gravity_imu
-  imu/extrinsics.rotation_rpy: [0.0, 0.0, 0.0]
+  imu/extrinsics/rotation_rpy: [0.0, 0.0, 0.0]
   imu/timeout_sec: 0.50
   imu/filter_alpha: 1.0
   imu/gravity_norm_filter_alpha: 0.01

@@ -51,6 +51,7 @@ core.*
 .env
 .env.*
 !.env.example
+/pswd
 pswd.txt
 *.pem
 *.key

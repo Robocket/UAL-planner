@@ -1,7 +1,7 @@
 <launch>
-  <arg name="common_config" default="$(find ual_planner_bringup)/config/common.yaml" />
-  <arg name="sensor_config" default="$(find ual_planner_bringup)/config/d1.yaml" />
-  <arg name="rviz_config" default="$(find ual_planner_bringup)/rviz/ual_planner.rviz" />
+  <arg name="common_config" default="$(dirname)/../config/common.yaml" />
+  <arg name="sensor_config" default="$(dirname)/../config/d1.yaml" />
+  <arg name="rviz_config" default="$(dirname)/../rviz/ual_planner.rviz" />
   <arg name="use_sim_time" default="false" />
   <arg name="start_segmentation" default="true" />
   <arg name="segmentation_executable" default="seg_q4_node" />
@@ -22,7 +22,7 @@
         type="graph.py" name="instance_graph" output="screen" />
   <node if="$(arg start_landing_evaluator)" pkg="landing_evaluator"
         type="landing_evaluator_node" name="landing_evaluator" output="screen" />
-  <include if="$(arg start_rviz)" file="$(find ual_planner_bringup)/launch/rviz.launch">
+  <include if="$(arg start_rviz)" file="$(dirname)/rviz.launch">
     <arg name="rviz_config" value="$(arg rviz_config)" />
   </include>
 </launch>

@@ -1,0 +1,23 @@
+<launch>
+  <arg name="start_image_adapter" default="true" />
+  <arg name="start_livox_adapter" default="true" />
+  <arg name="start_rviz" default="false" />
+  <arg name="start_segmentation" default="true" />
+  <arg name="start_projection" default="true" />
+  <arg name="start_instance_graph" default="true" />
+  <arg name="start_landing_evaluator" default="true" />
+  <rosparam command="load" file="$(dirname)/../config/scene_water.yaml" />
+  <node if="$(arg start_image_adapter)" pkg="ins_seg"
+        type="compressed_image_adapter.py" name="scene_water_image_adapter" output="screen" />
+  <node if="$(arg start_livox_adapter)" pkg="livox_avia_driver"
+        type="custom_to_pointcloud2_node" name="livox_custom_to_pointcloud2" output="screen" />
+  <include file="$(dirname)/ual_planner.launch">
+    <arg name="sensor_config" value="$(dirname)/../config/scene_water.yaml" />
+    <arg name="rviz_config" value="$(dirname)/../rviz/scene_water.rviz" />
+    <arg name="start_rviz" value="$(arg start_rviz)" />
+    <arg name="start_segmentation" value="$(arg start_segmentation)" />
+    <arg name="start_projection" value="$(arg start_projection)" />
+    <arg name="start_instance_graph" value="$(arg start_instance_graph)" />
+    <arg name="start_landing_evaluator" value="$(arg start_landing_evaluator)" />
+  </include>
+</launch>

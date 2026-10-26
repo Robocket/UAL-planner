@@ -5,10 +5,10 @@
 `src/evaluator.cpp`，不依赖 ROS。
 
 ```bash
-roslaunch landing_evaluator landing_evaluator.launch
-roslaunch landing_evaluator d1_test.launch
-roslaunch landing_evaluator avia_test.launch
-roslaunch landing_evaluator hil_sim.launch
+roslaunch --no-summary landing_evaluator landing_evaluator.launch
+roslaunch --no-summary landing_evaluator d1_test.launch
+roslaunch --no-summary landing_evaluator avia_test.launch
+roslaunch --no-summary landing_evaluator hil_sim.launch
 ```
 
 运行中可通过服务或话题控制评估：

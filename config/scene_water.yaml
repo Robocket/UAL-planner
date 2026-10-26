@@ -78,7 +78,7 @@ landing_evaluator:
   imu/enabled: true
   imu/required: true
   imu/topic: /livox/imu
-  imu/extrinsics.rotation_rpy: [0.0, 1.5707963267948966, 0.0]
+  imu/extrinsics/rotation_rpy: [0.0, 1.5707963267948966, 0.0]
   landing_radius: 1.25
   grid_resolution: 0.10
   landable_log_delay_sec: 2.0

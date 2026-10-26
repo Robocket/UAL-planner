@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <chrono>
+#include <clocale>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -235,7 +236,9 @@ private:
     }
     auto * progress = static_cast<DownloadProgress *>(client);
     const int percent = static_cast<int>(100 * current / total);
-    if (percent >= progress->last_percent + 10 || percent == 100) {
+    if ((percent >= progress->last_percent + 10 || percent == 100) &&
+      percent != progress->last_percent)
+    {
       progress->last_percent = percent;
       ROS_INFO("Q4_0 下载进度: %d%%", percent);
     }
@@ -279,7 +282,8 @@ private:
     }
     const auto url = get_parameter("q4_model_url").as_string();
     DownloadProgress progress;
-    ROS_INFO("首次运行自动下载 SAM 3 Q4_0 (约 674 MiB): %s", url.c_str());
+    const double expected_mib = static_cast<double>(expected_size) / (1024.0 * 1024.0);
+    ROS_INFO("首次运行自动下载 SAM 3 Q4_0 (约 %.0f MiB): %s", expected_mib, url.c_str());
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
@@ -548,6 +552,9 @@ private:
 
 int main(int argc, char ** argv)
 {
+  // rosconsole/log4cxx otherwise starts in the C locale and replaces UTF-8
+  // Chinese text with question marks even when the shell uses UTF-8.
+  std::setlocale(LC_ALL, "");
   const CURLcode curl_result = curl_global_init(CURL_GLOBAL_DEFAULT);
   if (curl_result != CURLE_OK) {
     std::fprintf(stderr, "libcurl 全局初始化失败: %s\n", curl_easy_strerror(curl_result));
@@ -560,6 +567,7 @@ int main(int argc, char ** argv)
     ros::spin();
   } catch (const std::exception & exception) {
     ROS_FATAL("%s", exception.what());
+    std::fprintf(stderr, "SAM 3 Q4_0 启动失败: %s\n", exception.what());
     exit_code = 1;
   }
   curl_global_cleanup();

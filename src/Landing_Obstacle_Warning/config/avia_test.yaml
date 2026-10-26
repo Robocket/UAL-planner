@@ -13,7 +13,7 @@ landing_evaluator:
   extrinsics/rotation_rpy: [0.0, 1.5707963267948966, 0.0]
   # IMU-to-base rotation. Default is identical to point-cloud mounting;
   # change independently if the Avia IMU axes differ from lidar axes.
-  imu/extrinsics.rotation_rpy: [0.0, 1.5707963267948966, 0.0]
+  imu/extrinsics/rotation_rpy: [0.0, 1.5707963267948966, 0.0]
 
   # The recorded Livox orientation quaternion is a constant identity. Use the
   # normalized accelerometer direction for low-cost roll/pitch compensation.

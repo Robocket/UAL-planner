@@ -24,7 +24,7 @@ landing_evaluator:
   # Therefore IMU -> driver point-cloud axes is Rx(pi). Compose it with the
   # point-cloud -> base Ry(+pi/2): R_imu_base = Ry(+pi/2) * Rx(pi).
   # Euler order used by the node is Rz(yaw) * Ry(pitch) * Rx(roll).
-  imu/extrinsics.rotation_rpy: [3.141592653589793, 1.5707963267948966, 0.0]
+  imu/extrinsics/rotation_rpy: [3.141592653589793, 1.5707963267948966, 0.0]
 
   # The Seyond D1 driver does not publish IMU by default. Keep compensation
   # disabled for the first level-hover test. Enable only a separately

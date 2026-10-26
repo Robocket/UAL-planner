@@ -18,5 +18,5 @@
 ./scripts/build_noetic.sh
 catkin_make run_tests
 catkin_test_results
-roslaunch --files ual_planner_bringup d1.launch
+roslaunch --files launch/d1.launch
 ```

@@ -3,7 +3,7 @@ landing_evaluator:
   output_topic: /landing/status
   height_map_topic: /landing/height_map
   output_frame: base_link
-  imu/extrinsics.rotation_rpy: [0.0, 0.0, 0.0]
+  imu/extrinsics/rotation_rpy: [0.0, 0.0, 0.0]
   # Keep the process resident but idle until the flight controller enables it.
   startup_enabled: true
   enable_topic: /landing_evaluator/enable
