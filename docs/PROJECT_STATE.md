@@ -5,7 +5,8 @@ visual-only 的历史试验和交接仍保存在该分支，不表示其权重/�
 
 ## 已完成
 
-- 实际目标为 `/home/crl/UAL-planner`，当前 `master` 基线 `bbe2261`。
+- 实际目标为 `/home/crl/UAL-planner`。原 `master` 起点基线为 `bbe2261`；2026-10-28
+  主功能集成为 `e2ec2c4`，已推送到 `origin/master`；后续交接文档更新随新提交推送。
   任务开始曾检出 `visual-only`，只读检查期间工作区从外部切到干净 master，未由本任务切分支。
   `/home/crl/ws_ual/UAL-planner` 的 `ros1` 检出及原 Noetic 点云算法均未修改。
 - 从 `/home/crl/ws_ual/src/pointcloud_cluster_bbox/scripts/pointcloud_cluster_bbox.py`
@@ -42,8 +43,8 @@ visual-only 的历史试验和交接仍保存在该分支，不表示其权重/�
   ros-dev-tools 和项目系统依赖安装，`bash -n` 与无权限入口检查通过。
   尚未执行特权安装，需用户在本机终端运行 `sudo bash scripts/install_jazzy.sh` 输入密码。
   未向聊天索取密码、未修改 apt 配置或安装系统包；ROS 2 仍未安装。
-- 上述 2026-10-26 集成任务没有安装依赖、下载模型/数据、训练、运行模型、人工看图、提交或推送。
-  master 的工作区修改尚未 commit；没有更新远端或其他机器。
+- 上述 2026-10-26 集成任务当时没有安装依赖、下载模型/数据、训练、运行模型、人工看图、
+  提交或推送；后续 2026-10-28 的完整集成已提交为 `e2ec2c4` 并推送，见本文件各处日期记录。
 
 ## 2026-10-28：Jazzy 数据转换与图像回放
 
@@ -130,7 +131,8 @@ visual-only 的历史试验和交接仍保存在该分支，不表示其权重/�
   `python3 scripts/verify_scene_water_pipeline.py --report-dir data/<new-directory> --start-rviz --start-offset 180`。
   禁止自动下载模型，不覆盖已有证据。输出在 `data/validation_20261028.9IzGKn/`：
   `time_audit.json`、`bbox_runtime.json`、`legacy_launches.json`、`run04/single_frame.json` 及相应日志。
-  全部数据/日志仍被 `/data/` 忽略；未提交、推送、训练或进行人工视觉质量验收。
+  全部数据/日志仍被 `/data/` 忽略；该次验证本身未提交/推送、未训练或进行人工视觉质量验收。
+  后续代码、配置、文档已由 `e2ec2c4` 提交并推送。
 
 ## 2026-10-28：默认检测模型切换与双模型兼容
 
@@ -256,6 +258,10 @@ visual-only 的历史试验和交接仍保存在该分支，不表示其权重/�
 
 ## 分支取用
 
-本次只改 master 工作区。`visual-only` 和 `learning-methods` 的提交历史保留；
-纯视觉资源/试验结论可用 `git show visual-only:docs/PROJECT_STATE.md` 只读查阅。
-后续提交/推送需要用户明确要求，不能把普通集成完成视为已同步到远端。
+本次功能集成在 master 完成，主功能提交 `e2ec2c4` 已推送到 `origin/master`；
+本交接文档更新随后提交并推送。`visual-only` 和 `learning-methods` 的提交历史保留；
+纯视觉资源/试验结论可用
+`git show visual-only:docs/PROJECT_STATE.md` 只读查阅。
+
+用户 2026-10-28 明确要求：**以后提交包括推送**。后续完成提交后同步推送到
+`origin/master`；当前远端 push URL 为 GitHub SSH 443，fetch 仍为 HTTPS。
