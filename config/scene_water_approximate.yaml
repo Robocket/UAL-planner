@@ -1,0 +1,24 @@
+# Provisional geometry explicitly requested on 2026-10-28; NOT measured calibration.
+# Overlay on scene_water.yaml. Actual camera/lens in the bag is unknown.
+# Representative camera: Hikvision MV-CA013-20GC, 1280x1024, 4.8 um pixels.
+# Assumed 6 mm focal length -> fx=fy=6/0.0048=1250 pixels.
+# Zero distortion and zero extra relative yaw are assumptions.
+mask_voxels:
+  ros__parameters:
+    calibration_confirmed: false
+    allow_approximate_calibration: true
+    lidar_frame: avia_frame
+    camera_optical_frame: hikvision_optical_approximate
+    image_width: 1280
+    image_height: 1024
+    camera_matrix: [1250.0, 0.0, 640.0,
+                    0.0, 1250.0, 512.0,
+                    0.0, 0.0, 1.0]
+    distortion_model: plumb_bob
+    distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+    # Coincident origins; common ground-facing boresight, no extra axial yaw.
+    # Avia +X -> optical +Z; +Y -> optical -X; +Z -> optical -Y.
+    lidar_to_camera: [0.0, -1.0, 0.0, 0.0,
+                      0.0, 0.0, -1.0, 0.0,
+                      1.0, 0.0, 0.0, 0.0,
+                      0.0, 0.0, 0.0, 1.0]

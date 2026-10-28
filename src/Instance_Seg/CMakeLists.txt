@@ -21,6 +21,8 @@ find_package(std_msgs REQUIRED)
 find_package(CURL REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/Detection.msg"
+  "msg/DetectionResult.msg"
   "msg/InstanceInfo.msg"
   "msg/ProjectedInstanceInfo.msg"
   "msg/SegInfo.msg"
@@ -66,9 +68,11 @@ install(TARGETS seg_q4_node
 
 install(PROGRAMS
   scripts/compressed_image_adapter.py
+  scripts/detector_core.py
   scripts/graph.py
   scripts/projection.py
   scripts/seg.py
+  scripts/yolo_detector.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

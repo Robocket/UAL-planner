@@ -1,5 +1,9 @@
 # 开题报告第三章算法优化清单
 
+本清单主体是此前融合链路的历史验证记录，不代表当前电脑重验。
+2026-10-26 新增的掩码选点/三维栅格架构、2026-10-28 新增的 YOLO 检测框选点及验证范围
+见 [当前状态](PROJECT_STATE.md)。
+
 ## 已完成
 
 - [x] 仅优化报告中已经描述并在现有代码中实现的降落面评估流程。
@@ -10,7 +14,7 @@
 - [x] 栅格只统计圆形 ROI 内的单元，并加入 `max_grid_cells` 内存上限。
 - [x] RANSAC 随机种子改为参数 `ransac_seed`，保证测试可复现。
 - [x] 二次平面分类点数不足时安全返回 UNKNOWN，而不是继续输出不可靠结果。
-- [x] Landing、实例分割、点云投影、实例图作为并列节点，由 `ual_planner_bringup` 管理。
+- [x] Landing、实例分割、点云投影、实例图作为并列节点；当前历史入口在根目录 `launch/`，由 `pointcloud_voxels` 安装。
 - [x] `ins_seg/launch/seg.launch.py` 恢复为只启动本包三个节点，不再包含 Landing。
 - [x] 算法公共参数集中到仓库根目录 `config/common.yaml`。
 - [x] D1、Avia、HIL 的话题、时钟、坐标系、雷达/相机标定与设备覆盖分别集中到
@@ -21,7 +25,7 @@
 - [x] 点云投影与实例图统一以世界坐标为内部计算基准；原始传感器/机体点云先转换到
   里程计世界系，`/projected_cloud` 与 `/projected_instance_info` 使用相同世界 frame_id。
 - [x] 提供 D1、Avia、HIL 三个 Jazzy launch；设备驱动不耦合到算法启动层。
-- [x] RViz launch 与统一显示配置移到仓库根目录，并由 `ual_planner_bringup` 安装和启动。
+- [x] RViz launch 与统一显示配置位于仓库根目录；当前由 `pointcloud_voxels` 安装和启动。
 - [x] 核对 Scene_Water 原始 bag 的实际话题、消息类型与 frame；原始输入严格使用
   `/left_camera/image/compressed`、`/livox/lidar`、`/livox/imu` 和
   `/fsdk/aircraft_state`。
@@ -56,11 +60,19 @@
 - [x] 修复 Python 节点可执行权限和 Jazzy 重复 SIGINT 时的退出清理。
 - [x] Jazzy 全量构建成功，Landing C++/Python 测试全部通过，四套 launch 已完成解析与
   参数加载验证。
+- [x] 2026-10-28 默认选点从实例掩码切换为 visual-only 的 YOLO11n-OBB 检测框；
+  保留 `selection_mode:=mask` 精确掩码路径和 `cluster` 纯雷达诊断，检测框只做图像多边形，
+  不伪造掩码。CTest 86 项零失败，真实单帧检测→点云→体素链路通过。
+- [x] 2026-10-28 增加 bbox 三维包围盒中心目标、LiDAR 系 3D A* 局部路径和 RViz 显示；
+  经评估未直接接 ROS 1/缺少 ROS 2 源码的 EGO-Planner，未接飞控或世界系里程计。
+- [x] 2026-10-28 点云 3D bbox：投影聚类 + PCA 有向矩形 + 法向范围生成 8 角点 OBB，
+  同类别/同 3D 区域默认保留旧框，只有更高置信度才替换；稳定 track_id、超时清理和
+  点云 bbox 目标已接入路径规划，CTest 86 项通过。
 
 ## 明确保留为后续工作
 
 - [ ] D1/Avia 与相机的真实内外参实机标定；当前数值是从原有节点迁移的测试初值。
-- [ ] ROS 1 Noetic 的 `roscpp/rospy` 薄包装和对应 `.launch`；共享算法核心及参数名保持不变。
+- 后续只面向 ROS 2 Jazzy；Noetic 包装计划取消，不再列为待办。
 
 ## 本次未添加
 

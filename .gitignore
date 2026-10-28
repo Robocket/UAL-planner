@@ -6,6 +6,11 @@
 /.catkin_tools/
 /.colcon/
 
+# Local bags, images and conversion reports; never include dataset contents.
+/data/
+/models/
+/checkpoints/
+
 # CMake build artifacts (including in-source builds)
 CMakeCache.txt
 CMakeFiles/
@@ -35,6 +40,7 @@ __pycache__/
 .coverage
 htmlcov/
 .venv/
+.venv-*/
 venv/
 env/
 *.egg-info/
@@ -47,7 +53,7 @@ dist/
 *.db3
 *.pid
 core
-core.*
+core.[0-9]*
 
 # Local configuration and secrets
 .env

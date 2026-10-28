@@ -1,0 +1,117 @@
+# Numerical/visual defaults migrated from ws_ual. Sensor calibration overrides
+# belong in the selected root config/<sensor>.yaml file, under mask_voxels.
+mask_voxels:
+  ros__parameters:
+    # detection: camera bbox/OBB polygons (default, YOLO11n-OBB)
+    # mask:      exact SAM3/instance-mask pixels
+    # cluster:   legacy LiDAR-only PCA bbox diagnostic (alias bbox)
+    selection_mode: detection
+    detection_topic: /ship/detections
+    segmentation_topic: /sam3/segmentation
+    marker_topic: /ship/voxels
+    selected_cloud_topic: /ship/points
+    instance_selection: largest  # largest image mask/polygon with valid 3D points, or all
+    target_instance_id: 0        # 0: automatic; positive: exact instance ID
+    target_class_name: ""        # empty: any declared instance, or an exact class name
+    detection_boundary_epsilon: 1.0e-6  # pixels treated as inside a polygon edge
+
+    # Point-cloud bbox (not an image bbox): project selected points on a plane,
+    # cluster voxel centroids, fit a PCA oriented rectangle, add normal extent,
+    # and keep the 3D box across frames unless a nearby bbox has higher
+    # detector confidence.  See docs/DECISIONS.md M08.
+    point_bbox_enabled: true
+    bbox_topic: /ship/bboxes
+    bbox_target_topic: /ship/bbox_target
+    bbox_projection_plane: yz
+    bbox_voxel_size: 0.25
+    bbox_cluster_tolerance: 0.8
+    bbox_min_cluster_points: 20
+    bbox_max_cluster_points: 200000
+    bbox_box_type: oriented
+    bbox_min_box_size: 0.1
+    bbox_min_height: 0.1
+    bbox_cluster_selection: largest_area
+    bbox_fallback_to_aabb: true
+    bbox_confidence_margin: 0.0
+    bbox_match_iou: 0.2
+    bbox_match_center_ratio: 0.5
+    bbox_timeout_sec: 2.0
+    max_bboxes: 100
+    bbox_target_selection: largest_volume
+    bbox_line_width: 0.08
+    bbox_label_height: 0.8
+
+    # Source LiDAR coordinates, metres. Retains the ws_ual 20 x 50 m YZ ROI.
+    roi_min: [0.5, -10.0, -25.0]
+    roi_max: [80.0, 10.0, 25.0]
+    voxel_3d_size: 0.5
+    voxel_3d_min_points: 1
+    voxel_edge_empty_faces: 4
+    voxel_corner_min_empty_faces: 5
+    max_visualized_3d_voxels: 30000
+    plane_rgba: [0.05, 0.35, 1.0, 0.22]
+    edge_rgba: [0.10, 0.80, 0.20, 1.0]
+    corner_rgba: [0.95, 0.0, 0.0, 1.0]
+    # Persist the last acquisition while slow segmentation runs. Replaced by
+    # the next matched result (including a valid empty mask); not a live map.
+    marker_lifetime: 0.0
+    show_labels: true
+
+    # Retain enough history for delayed masks; never use the latest cloud in
+    # place of one matching the input image's acquisition timestamp.
+    pointcloud_cache_size: 800
+    pending_mask_limit: 4
+    timestamp_reset_threshold_sec: 30.0
+    sync_slop: 0.2
+    near_plane: 0.1
+    far_plane: 100.0
+
+    # Only used by the explicit legacy cluster/bbox diagnostic mode.
+    projection_plane: yz
+    voxel_size: 0.25
+    cluster_tolerance: 0.8
+    min_cluster_points: 20
+    max_cluster_points: 200000
+    min_box_size: 0.1
+
+# Local 3D A* path from the sensor origin to the selected bbox target.
+# Targets are the 3D bounding-box center of /ship/points.  Outputs remain in
+# the LiDAR frame; this is not a closed-loop controller or EGO-Planner.
+path_planner:
+  ros__parameters:
+    target_cloud_topic: /ship/points
+    target_cloud_reliability: best_effort
+    bbox_target_topic: /ship/bbox_target
+    bbox_target_reliability: best_effort
+    obstacle_topic: /livox/lidar/points
+    pointcloud_reliability: best_effort
+    path_topic: /ship/path
+    target_topic: /ship/target
+    marker_topic: /ship/path_markers
+    status_topic: /ship/path_status
+    lidar_frame: avia_frame
+
+    # Start is the LiDAR origin in the sensor frame unless a device profile
+    # provides another local start.  No odometry or world-frame conversion is
+    # fabricated by this node.
+    start_point: [0.0, 0.0, 0.0]
+    target_offset: [0.0, 0.0, 0.0]
+
+    resolution: 1.0              # metres per A* cell
+    obstacle_inflation: 0.5      # mark a 0.5 m neighbourhood around LiDAR points
+    target_exclusion_margin: 0.5 # do not treat the target object as an obstacle
+    start_clearance: 0.5
+    goal_clearance: 0.5
+    margin_xy: 5.0
+    margin_z: 3.0
+    max_grid_cells: 200000
+    smooth_path: true
+    sync_slop: 0.2
+    obstacle_cache_size: 20
+    timestamp_reset_threshold_sec: 30.0
+    roi_min: [0.5, -10.0, -25.0]
+    roi_max: [80.0, 10.0, 25.0]
+    marker_lifetime: 0.0
+    marker_size: 0.5
+    path_width: 0.08
+    label_height: 1.0

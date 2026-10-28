@@ -1,0 +1,28 @@
+# YOLO ship detector. The default is the YOLO11n-OBB checkpoint
+# accepted on visual-only (DOTA ship class). Both OBB and horizontal detect
+# heads publish the same DetectionResult polygon message.
+ship_detector:
+  ros__parameters:
+    use_sim_time: false
+    image_topic: /left_camera/image
+    image_reliability: best_effort
+    detection_topic: /ship/detections
+    annotated_topic: /ship/detections_image
+    # Empty selects ~/.cache/ual_planner/models/yolo11n-obb.pt.
+    # Set weights_sha256 to "" when intentionally using another checkpoint.
+    weights: ""
+    weights_sha256: "b62898ebf38940ca4df323863e45ee9d84a1a46d5d11ebdde529fb33aa9f3a32"
+    task: obb
+    target_classes: [ship]
+    confidence_threshold: 0.25
+    iou_threshold: 0.7
+    max_detections: 300
+    image_size: 640
+    # Use "0" for CUDA device 0; "auto" lets Ultralytics choose.
+    device: cpu
+    half: false
+    agnostic_nms: false
+    cpu_threads: 4
+    publish_annotated: true
+    qos_depth: 1
+    log_period_sec: 10.0

@@ -1,0 +1,155 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid 1m
+      Enabled: true
+      Cell Size: 1
+      Plane: YZ
+      Plane Cell Count: 60
+      Alpha: 0.35
+      Color: 120; 120; 120
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Raw LiDAR
+      Enabled: true
+      Color Transformer: FlatColor
+      Color: 170; 170; 170
+      Position Transformer: XYZ
+      Style: Points
+      Size (Pixels): 2
+      Size (m): 0.02
+      Alpha: 0.3
+      Decay Time: 0
+      Topic:
+        Value: /livox/lidar/points
+        Depth: 2
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Selected points
+      Enabled: false
+      Color Transformer: FlatColor
+      Color: 255; 255; 255
+      Position Transformer: XYZ
+      Style: Points
+      Size (Pixels): 3
+      Alpha: 1
+      Decay Time: 0
+      Topic:
+        Value: /ship/points
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: false
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Ship occupancy (blue plane, green edge, red corner)
+      Enabled: true
+      Namespaces:
+        ship_voxel_plane: true
+        ship_voxel_edge: true
+        ship_voxel_corner: true
+        ship_voxel_labels: true
+      Topic:
+        Value: /ship/voxels
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Point-cloud bbox (maintained)
+      Enabled: true
+      Namespaces:
+        ship_point_bbox: true
+        ship_point_bbox_labels: true
+      Topic:
+        Value: /ship/bboxes
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: true
+    - Class: rviz_default_plugins/Path
+      Name: Planned path
+      Enabled: true
+      Line Style: Lines
+      Line Width: 0.08
+      Color: 0; 230; 255
+      Topic:
+        Value: /ship/path
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: true
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Path target and selected AABB
+      Enabled: true
+      Namespaces:
+        path_start: true
+        path_target: true
+        path_bbox: true
+        path_line: true
+        path_label: true
+      Topic:
+        Value: /ship/path_markers
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: true
+    - Class: rviz_default_plugins/Image
+      Name: Ship detections
+      Enabled: true
+      Topic:
+        Value: /ship/detections_image
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: true
+    - Class: rviz_default_plugins/Image
+      Name: Instance masks
+      Enabled: false
+      Topic:
+        Value: /sam3/annotated_image
+        Depth: 1
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: false
+  Enabled: true
+  Global Options:
+    Fixed Frame: avia_frame
+    Background Color: 35; 35; 35
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 50
+      Pitch: 0.3
+      Yaw: 3.14
+      Focal Point:
+        X: 30
+        Y: 0
+        Z: 0
+      Target Frame: <Fixed Frame>
+Window Geometry:
+  Width: 1500
+  Height: 950

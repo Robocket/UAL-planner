@@ -107,6 +107,7 @@ public:
   : Node("sam3_segmentation")
   {
     declare_parameter<std::string>("image_topic", "/camera/color/image_raw");
+    declare_parameter<std::string>("image_reliability", "best_effort");
     declare_parameter<std::string>("result_topic", "/sam3/segmentation");
     declare_parameter<std::string>("annotated_topic", "/sam3/annotated_image");
     declare_parameter<std::string>("performance_topic", "/sam3/performance");
@@ -187,8 +188,18 @@ public:
       get_parameter("annotated_topic").as_string(), depth);
     performance_pub_ = create_publisher<diagnostic_msgs::msg::DiagnosticArray>(
       get_parameter("performance_topic").as_string(), depth);
+    const auto reliability = get_parameter("image_reliability").as_string();
+    if (reliability != "reliable" && reliability != "best_effort") {
+      throw std::invalid_argument("image_reliability must be reliable or best_effort");
+    }
+    auto image_qos = rclcpp::QoS(rclcpp::KeepLast(depth));
+    if (reliability == "best_effort") {
+      image_qos.best_effort();
+    } else {
+      image_qos.reliable();
+    }
     image_sub_ = create_subscription<sensor_msgs::msg::Image>(
-      image_topic_, rclcpp::SensorDataQoS().keep_last(depth),
+      image_topic_, image_qos,
       std::bind(&Sam3Q4Segmentation::image_callback, this, std::placeholders::_1));
     RCLCPP_INFO(
       get_logger(), "SAM 3 Q4_0 节点已启动: topic=%s, prompt=\"%s\"",

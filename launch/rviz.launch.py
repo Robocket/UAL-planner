@@ -11,7 +11,7 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    share = get_package_share_directory('ual_planner_bringup')
+    share = get_package_share_directory('pointcloud_voxels')
     common_config = LaunchConfiguration('common_config')
     sensor_config = LaunchConfiguration('sensor_config')
     rviz_config = LaunchConfiguration('rviz_config')
@@ -43,6 +43,7 @@ def generate_launch_description():
             name='ual_planner_rviz',
             output='screen',
             arguments=['-d', rviz_config],
+            additional_env={'GTK_PATH': '', 'GIO_MODULE_DIR': '', 'GTK_MODULES': ''},
             parameters=parameter_files,
         ),
     ])

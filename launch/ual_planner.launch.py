@@ -13,7 +13,7 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    share = get_package_share_directory('ual_planner_bringup')
+    share = get_package_share_directory('pointcloud_voxels')
     common_config = LaunchConfiguration('common_config')
     sensor_config = LaunchConfiguration('sensor_config')
     rviz_config = LaunchConfiguration('rviz_config')

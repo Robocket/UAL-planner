@@ -1,51 +1,30 @@
-# Jazzy / Noetic 兼容约定
+# ROS 2 Jazzy 与旧工作空间的边界
 
-## 基线与边界
+2026-10-26 master 架构更新后，后续开发、测试和部署只面向 **ROS 2 Jazzy**。
+旧 Noetic 兼容方案是历史计划，已经取消；这个文件保留原路径，便于旧文档链接继续使用。
 
-- 主开发、持续构建和新功能验证以 ROS 2 Jazzy 为基线。
-- ROS 1 Noetic 只承担部署适配，不在算法实现中引入 ROS 版本分支。
-- launch 负责选择节点包装、话题名、配置文件和设备预设，不能代替 ROS 1/ROS 2 API
-  适配。`rclcpp` 节点不能仅通过更换 launch 在 Noetic 中运行。
+## 代码与资源
 
-## 代码分层
+- 算法节点使用 `rclcpp/rclpy`、`ament_cmake` 和 ROS 2 消息；纯 NumPy/C++ 核心可以离线测试。
+- `src/Pointcloud_Voxels` 的数值算法来自 ws_ual，但节点包装已改为 ROS 2，不导入 `rospy`。
+- 启动、设备配置、RViz 分别位于根目录 `launch/`、`config/`、`rviz/`。
+- 根目录资源由算法包 `pointcloud_voxels` 安装；不再使用独立 Bringup 包。
+- 新入口：`ros2 launch pointcloud_voxels scene_water.launch.py`。
+  历史 D1 全链路入口：`ros2 launch pointcloud_voxels d1.launch.py`。
 
-| 层次 | 允许依赖 | 复用方式 |
-| --- | --- | --- |
-| 算法核心 | C++ 标准库、NumPy/OpenCV 等算法库 | Jazzy 与 Noetic 直接复用 |
-| 消息转换 | `rclcpp` 或 `roscpp/rospy` | 每个 ROS 版本单独实现 |
-| 启动与配置 | Jazzy `.launch.py` / Noetic `.launch` | 使用相同算法参数名，不同接口预设 |
+## 构建与数据
 
-当前 `landing_evaluator_core` 及其 `evaluator.hpp/evaluator.cpp` 不包含 ROS 头文件，属于
-共享算法核心。`landing_evaluator_node.cpp` 是 Jazzy 包装层，负责 PointCloud2/IMU 消息、
-参数、状态机和发布接口。后续 Noetic 支持应新增独立 catkin 包装层并链接同一核心，不能
-复制或改写评估算法。
+使用 `scripts/build_jazzy.sh`，输出到 `build/jazzy`、`install/jazzy`、`log/jazzy`。
+脚本清除继承的其他 ROS 发行版路径。旧 ws_ual 的 catkin 编译产物不参与本仓库构建。
 
-Python 模块在继续开发时，也应把数组输入/输出的计算函数放入不导入 `rclpy`/`rospy` 的
-模块；Jazzy 与 Noetic 节点只完成消息和数组之间的转换。
+标准输入为 ROS 2 Image、PointCloud2、CameraInfo、`ins_seg/DetectionResult` 及兼容的
+`ins_seg/SegmentationResult`。检测节点依赖 Ultralytics/PyTorch，但不进入 ROS 构建，
+由 launch 的 `detector_python` 指定独立解释器；ROS 节点本身仍只使用标准消息。
+原始 Scene_Water 的 Livox CustomMsg 和压缩图像由已有 ROS 2 适配器转换。
+ROS 1 `.bag` 不能直接作为 `ros2 bag play` 输入；本次没有新增桥接、Noetic 包装或全数据转换。
 
-## Launch 与配置约定
+## 验证边界
 
-- Jazzy：使用 `*.launch.py`，当前入口为
-  `ros2 launch ual_planner_bringup d1.launch.py`；Avia/HIL 使用同包对应 launch。
-- Noetic：使用独立 catkin 包和 `*.launch`；在包装层完成前不提供不可运行的占位 launch。
-- 坡度、粗糙度、RANSAC、栅格、滤波和匹配阈值等算法参数保持同名、同单位。
-- ROS 版本相关的 QoS、服务类型、消息包名和时间 API 不进入共享算法参数。
-- 仓库根目录 `config/common.yaml` 保存算法公共参数，`config/d1.yaml`、
-  `config/avia.yaml`、`config/hil_sim.yaml` 保存设备接口、外参及必要覆盖；不在算法中按
-  ROS 版本或设备名称编写条件分支。
-
-Jazzy 构建使用 `scripts/build_jazzy.sh`，固定输出到 `build/jazzy`、`install/jazzy` 和
-`log/jazzy`。脚本在加载 `/opt/ros/jazzy/setup.bash` 前移除继承的 ROS/CMake/Python
-前缀，从而避免不同发行版的 rosidl 生成器进入同一个 CMake 缓存。
-
-## 当前支持状态
-
-| 模块 | Jazzy | Noetic |
-| --- | --- | --- |
-| 降落评估算法核心 | 已构建、已测试 | 可复用，待 catkin 包装 |
-| Landing ROS 节点 | 已实现 | 待实现消息与节点包装 |
-| 实例分割/投影/实例图节点 | 已实现 | 待拆分纯算法模块与 rospy 包装 |
-| 总启动文件 | `ual_planner_bringup` 的设备 launch | 待各包装层完成后提供 |
-
-Noetic 适配验收至少应包含：相同合成输入下核心数值结果一致、参数文件逐项对应、三态与
-原因位掩码一致，以及 D1 点云/IMU 回放接口测试。
+2026-10-28 已在本机完成五包 Jazzy 构建、86项CTest、安装入口、数据回放、近似几何的
+真实单帧检测/掩码/点云 3D bbox/局部路径接口验证。
+图像/点云采集 header 同步通过；正式内外参及识别/几何精度尚未验收，见 [当前状态](PROJECT_STATE.md)。

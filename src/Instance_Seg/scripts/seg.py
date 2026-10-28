@@ -10,7 +10,7 @@ from cv_bridge import CvBridge, CvBridgeError
 from diagnostic_msgs.msg import DiagnosticArray, DiagnosticStatus, KeyValue
 from PIL import Image as PilImage
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import Image
 
 try:
@@ -40,6 +40,7 @@ class Sam3Segmentation(Node):
         super().__init__('sam3_segmentation')
 
         self.declare_parameter('image_topic', '/camera/color/image_raw')
+        self.declare_parameter('image_reliability', 'best_effort')
         self.declare_parameter('result_topic', '/sam3/segmentation')
         self.declare_parameter('annotated_topic', '/sam3/annotated_image')
         self.declare_parameter('text_prompt', 'large ship')
@@ -154,8 +155,15 @@ class Sam3Segmentation(Node):
         self.performance_pub = self.create_publisher(
             DiagnosticArray, self.performance_topic, qos_depth
         )
+        reliability = self.get_parameter('image_reliability').value
+        if reliability not in ('best_effort', 'reliable'):
+            raise ValueError('image_reliability must be reliable or best_effort')
+        image_qos = QoSProfile(depth=qos_depth, reliability=(
+            ReliabilityPolicy.RELIABLE if reliability == 'reliable'
+            else ReliabilityPolicy.BEST_EFFORT
+        ))
         self.image_sub = self.create_subscription(
-            Image, image_topic, self.image_callback, qos_profile_sensor_data
+            Image, image_topic, self.image_callback, image_qos
         )
         self.get_logger().info(
             f'SAM 3 分割节点已启动: topic={image_topic}, '

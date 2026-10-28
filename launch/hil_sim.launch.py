@@ -12,7 +12,7 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    share = get_package_share_directory('ual_planner_bringup')
+    share = get_package_share_directory('pointcloud_voxels')
     sensor_config = LaunchConfiguration('sensor_config')
     return LaunchDescription([
         DeclareLaunchArgument(

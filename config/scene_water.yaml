@@ -27,6 +27,52 @@ sam3_segmentation:
   ros__parameters:
     use_sim_time: false
     image_topic: /left_camera/image
+    # The converted bag and image adapter publish Reliable. Raw 1280x1024
+    # images are ~4 MiB; reliable delivery prevents fragmented single shots
+    # from silently disappearing before inference.
+    image_reliability: reliable
+
+ship_detector:
+  ros__parameters:
+    use_sim_time: false
+    image_topic: /left_camera/image
+    # Same converted-bag image stream; Reliable avoids dropping raw frames.
+    image_reliability: reliable
+
+mask_voxels:
+  ros__parameters:
+    use_sim_time: false
+    pointcloud_topic: /livox/lidar/points
+    pointcloud_reliability: reliable
+    detection_topic: /ship/detections
+    camera_info_topic: /left_camera/camera_info
+    lidar_frame: avia_frame
+    # This must name the optical frame targeted by lidar_to_camera, not an
+    # invented replacement for the bag's empty image frame_id.
+    camera_optical_frame: ""
+    image_width: 1280
+    image_height: 1024
+    # Historical placeholders only. Same lens direction does NOT establish an
+    # identity transform into camera optical axes (+Z forward, +X right, +Y down).
+    calibration_confirmed: false
+    camera_matrix: [385.45, 0.0, 640.0,
+                    0.0, 385.45, 512.0,
+                    0.0, 0.0, 1.0]
+    distortion_model: plumb_bob
+    distortion: [0.0, 0.0, 0.0, 0.0, 0.0]
+    lidar_to_camera: [1.0, 0.0, 0.0, 0.0,
+                      0.0, 1.0, 0.0, 0.0,
+                      0.0, 0.0, 1.0, 0.0,
+                      0.0, 0.0, 0.0, 1.0]
+
+path_planner:
+  ros__parameters:
+    use_sim_time: false
+    target_cloud_topic: /ship/points
+    target_cloud_reliability: reliable
+    obstacle_topic: /livox/lidar/points
+    pointcloud_reliability: reliable
+    lidar_frame: avia_frame
 
 pointcloud_projection:
   ros__parameters:

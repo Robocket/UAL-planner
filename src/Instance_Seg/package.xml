@@ -2,7 +2,7 @@
 <package format="3">
   <name>ins_seg</name>
   <version>0.1.0</version>
-  <description>ROS 2 instance segmentation, point-cloud projection and instance tracking.</description>
+  <description>ROS 2 instance segmentation, YOLO detection, point-cloud projection and instance tracking.</description>
 
   <maintainer email="TODO@example.com">TODO</maintainer>
   <license>TODO</license>
@@ -17,7 +17,7 @@
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
 
-  <build_depend>libcurl4-openssl-dev</build_depend>
+  <build_depend>libcurl-dev</build_depend>
   <build_depend>libssl-dev</build_depend>
 
   <exec_depend>launch</exec_depend>

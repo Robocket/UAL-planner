@@ -10,12 +10,12 @@ from launch.substitutions import LaunchConfiguration
 
 
 def generate_launch_description():
-    share = get_package_share_directory('ual_planner_bringup')
+    share = get_package_share_directory('pointcloud_voxels')
     return LaunchDescription([
         DeclareLaunchArgument(
             'sensor_config',
-            default_value=os.path.join(share, 'config', 'avia.yaml'),
-            description='Livox Avia radar/camera profile',
+            default_value=os.path.join(share, 'config', 'd1.yaml'),
+            description='D1 radar/camera profile',
         ),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(

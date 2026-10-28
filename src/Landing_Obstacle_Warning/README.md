@@ -4,12 +4,12 @@
 `landing_evaluator/msg/LandingStatus`，不依赖具体雷达驱动或 PCL，便于迁移到其他工作空间。
 
 在完整 UAL-planner 中，本节点与实例分割、点云投影和实例图节点并列，由
-`ual_planner_bringup` 启动。仓库根目录 `config/` 是集成运行的统一配置源；本包内的
+根目录 `launch/` 中的历史全链路入口启动（资源由 `pointcloud_voxels` 安装）。仓库根目录 `config/` 是集成运行的统一配置源；本包内的
 `config/*_test.yaml` 和测试 launch 仅保留给节点独立标定、回放与验收，不是总工作流的
 权威配置。D1 集成启动命令为：
 
 ```bash
-ros2 launch ual_planner_bringup d1.launch.py
+ros2 launch pointcloud_voxels d1.launch.py
 ```
 
 算法实现固定外参转换、圆形降落 ROI、RANSAC 平面、坡度与残差、2.5D 网格覆盖率、

@@ -1,0 +1,71 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+  - Class: rviz_common/Views
+    Name: Views
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid 1m
+      Enabled: true
+      Cell Size: 1
+      Plane: YZ
+      Plane Cell Count: 60
+      Color: 100; 100; 100
+      Alpha: 0.3
+      Reference Frame: <Fixed Frame>
+      Value: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: LiDAR
+      Enabled: true
+      Position Transformer: XYZ
+      Color Transformer: FlatColor
+      Color: 110; 210; 255
+      Style: Points
+      Size (Pixels): 2
+      Size (m): 0.02
+      Alpha: 1
+      Decay Time: 0
+      Topic:
+        Value: /livox/lidar/points
+        Depth: 5
+        Reliability Policy: Best Effort
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: true
+    - Class: rviz_default_plugins/Image
+      Name: Camera image
+      Enabled: true
+      Transport Hint: raw
+      Topic:
+        Value: /left_camera/image
+        Depth: 2
+        Reliability Policy: Reliable
+        Durability Policy: Volatile
+        History Policy: Keep Last
+      Value: true
+  Enabled: true
+  Global Options:
+    Fixed Frame: avia_frame
+    Background Color: 35; 35; 35
+    Frame Rate: 30
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Distance: 50
+      Pitch: 0.3
+      Yaw: 3.14
+      Focal Point:
+        X: 30
+        Y: 0
+        Z: 0
+      Target Frame: <Fixed Frame>
+Window Geometry:
+  Width: 1500
+  Height: 950
